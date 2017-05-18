@@ -3,9 +3,10 @@ library(magrittr)
 library(stringr)
 
 load('data/varInfoWithHistoneMarkAnnotations.RData')
+load('data/gatheredMPRA.RData')
 names(varInfo)[12] = 'transcriptionalShift'
 
-preds = varInfo %>% select(contains('Broad'), contains('Sydh')) %>%
+preds = varInfo %>% select(contains('Broad'), contains('Sydh'), eigen:DeepSeaDnaase) %>%
   map_df(~scale(.x)[,1]) #effing scale only outputs matrices
 
 generateDistMat = function(predictors) {
@@ -41,5 +42,49 @@ varInfo %<>%
   mutate(kNN = map(1:nrow(.), ~findKNN(k, .x, distMat)),
          numNeigh = map_int(kNN, length))
 
-computeLikelihood
+likFunFromData = function(refAct, mutAct){
+  # Returns a log-likelihood function from two vectors of activities
+  likfun =  function(refMu, mutMu, sig) {
+    sum(c(dnorm(refAct, refMu, sig, log = TRUE), 
+          dnorm(mutAct, mutMu, sig, log = TRUE)))
+  }
+  
+  return(likfun)  
+}
 
+priorFromLikFuns = function(likFuns, refMu, mutMu, sig){ #the prior will be the GEOMETRIC mean of the likelihood functions of the kNN
+  priorfun = function(refMu, mutMu, sig) {
+    sum(map_dbl(likFuns, ~.x(refMu, mutMu, sig))) / length(likFuns)
+  }
+  
+  return(priorfun)
+}
+
+getPriorFun = function(kNN){
+  priorFromLikFuns(varFuns$varLikFun[kNN], refMu, mutMu, sig)
+}
+
+varFuns = MPRA.qnactivity %>% 
+  group_by(construct) %>% 
+  summarise(refDat = list(qnact[type == 'Ref']),
+            mutDat = list(qnact[type == 'Mut']),
+            varLikFun = map2(refDat, mutDat, ~likFunFromData(.x, .y))) %>% 
+  select(-refDat, -mutDat) %>% 
+  right_join(varInfo, by = 'construct')
+
+varFuns %<>% mutate(priorFun = lapply(varFuns$kNN, getPriorFun)) #gasp, lapply worked where map didn't
+
+getPostFun = function(likFun, priorFun) {
+  function(refMu, mutMu, sig){
+    likFun(refMu, mutMu, sig) + priorFun(refMu, mutMu, sig)
+  }
+}
+varFuns %<>% mutate(postFun = lapply(1:nrow(varFuns), function(i){getPostFun(varFuns$varLikFun[[i]],
+                                                                             varFuns$priorFun[[i]])}))
+
+meanDiffs = MPRA.qnactivity %>% 
+  group_by(construct) %>% 
+  summarise(TS = mean(qnact[type == 'Mut']) - mean(qnact[type == 'Ref']),
+            pooledSD = sqrt(((sum(type == 'Mut') - 1)*sd(qnact[type == 'Mut'])**2 + sum(type == 'Ref') - 1)*sd(qnact[type == 'Ref'])**2 / (length(qnact) - 2)))
+
+varFuns %<>% left_join(meanDiffs, by = 'construct')
