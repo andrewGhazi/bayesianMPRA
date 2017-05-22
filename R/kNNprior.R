@@ -2,6 +2,8 @@ library(tidyverse)
 library(magrittr)
 library(stringr)
 library(mcmc)
+library(parallel)
+
 select = dplyr::select
 
 load('data/varInfoWithHistoneMarkAnnotations.RData')
@@ -47,24 +49,26 @@ varInfo %<>%
 
 likFunFromData = function(refAct, mutAct){
   # Returns a log-likelihood function from two vectors of activities
-  likfun =  function(refMu, mutMu, sig) {
-    sum(c(dnorm(refAct, refMu, sig, log = TRUE), 
-          dnorm(mutAct, mutMu, sig, log = TRUE)))
+  likfun =  function(paramVec) {
+    # Formerly took three arguments: refMu, mutMu, sig. But mcmc::metrop() needs it to take a vector, so it's changed accordingly
+    sum(c(dnorm(refAct, paramVec[1], paramVec[3], log = TRUE), 
+          dnorm(mutAct, paramVec[2], paramVec[3], log = TRUE)))
   }
   
   return(likfun)  
 }
 
-priorFromLikFuns = function(likFuns, refMu, mutMu, sig){ #the prior will be the GEOMETRIC mean of the likelihood functions of the kNN
-  priorfun = function(refMu, mutMu, sig) {
-    mean(map_dbl(likFuns, ~.x(refMu, mutMu, sig)))
+priorFromLikFuns = function(likFuns, paramVec){ #the prior will be the GEOMETRIC mean of the likelihood functions of the kNN
+  priorfun = function(paramVec) {
+    # Formerly took three arguments: refMu, mutMu, sig. But mcmc::metrop() needs it to take a vector, so it's changed accordingly
+    mean(map_dbl(likFuns, ~.x(paramVec)))
   }
   
   return(priorfun)
 }
 
 getPriorFun = function(kNN){
-  priorFromLikFuns(varFuns$varLikFun[kNN], refMu, mutMu, sig)
+  priorFromLikFuns(varFuns$varLikFun[kNN], paramVec)
 }
 
 varFuns = MPRA.qnactivity %>% 
@@ -78,8 +82,9 @@ varFuns = MPRA.qnactivity %>%
 varFuns %<>% mutate(priorFun = lapply(varFuns$kNN, getPriorFun)) #gasp, lapply worked where map didn't
 
 getPostFun = function(likFun, priorFun) {
-  function(refMu, mutMu, sig){
-    likFun(refMu, mutMu, sig) + priorFun(refMu, mutMu, sig)
+  function(paramVec){
+    if(paramVec[3] < 0) return(-Inf)
+    likFun(paramVec) + priorFun(paramVec)
   }
 }
 varFuns %<>% mutate(postFun = lapply(1:nrow(varFuns), function(i){getPostFun(varFuns$varLikFun[[i]],
@@ -92,4 +97,24 @@ meanDiffs = MPRA.qnactivity %>%
 
 varFuns %<>% left_join(meanDiffs, by = 'construct')
 
-tmp = metrop(varFuns$postFun[[981]], initial = c(0,0,1), nbatch = 3, blen = 1000, nspac = 5)
+system.time({tmp = metrop(varFuns$postFun[[981]], initial = c(0,0,1), nbatch = 5000, blen = 1, nspac = 5,
+             scale = .12)})
+
+runUlirschMCMC = mclapply(seq_along(varFuns$construct),
+                          function(i){
+                            strt = Sys.time()
+                            burn = metrop(varFuns$postFun[[i]], 
+                                          initial = c(0,0,1), 
+                                          nbatch = 100, 
+                                          blen = 1, 
+                                          scale = .12, 
+                                          nspac = 5)
+                            res = metrop(burn, 
+                                         nbatch = 5000, 
+                                         blen = 1, 
+                                         scale = .12, 
+                                         nspac = 5)
+                            save(res, file = paste0('~/bayesianMPRA/outputs/30NNmcmcOutputs/', varFuns$construct[i] %>% str_replace_all(' ', '_') %>% str_replace('/', '-'), '.RData'))
+                            stp = Sys.time() - strt
+                            return(stp)
+                          }, mc.cores = 20)
