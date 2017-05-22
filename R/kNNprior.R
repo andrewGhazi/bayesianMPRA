@@ -1,6 +1,8 @@
 library(tidyverse)
 library(magrittr)
 library(stringr)
+library(mcmc)
+select = dplyr::select
 
 load('data/varInfoWithHistoneMarkAnnotations.RData')
 load('data/gatheredMPRA.RData')
@@ -20,7 +22,6 @@ generateDistMat = function(predictors) {
   
 }
 
-
 findKNN = function(k, i, distMat){
   # For the ith variant, return the indices of the k nearest neighbors in the dist mat
   
@@ -36,7 +37,9 @@ findKNN = function(k, i, distMat){
 }
 
 k = 30 
-distMat = generateDistMat(preds)
+#distMat = generateDistMat(preds)
+#save(distMat, file = '~/bayesianMPRA/outputs/distMat.RData')
+load('~/bayesianMPRA/outputs/distMat.RData')
 
 varInfo %<>% 
   mutate(kNN = map(1:nrow(.), ~findKNN(k, .x, distMat)),
@@ -54,7 +57,7 @@ likFunFromData = function(refAct, mutAct){
 
 priorFromLikFuns = function(likFuns, refMu, mutMu, sig){ #the prior will be the GEOMETRIC mean of the likelihood functions of the kNN
   priorfun = function(refMu, mutMu, sig) {
-    sum(map_dbl(likFuns, ~.x(refMu, mutMu, sig))) / length(likFuns)
+    mean(map_dbl(likFuns, ~.x(refMu, mutMu, sig)))
   }
   
   return(priorfun)
@@ -88,3 +91,5 @@ meanDiffs = MPRA.qnactivity %>%
             pooledSD = sqrt(((sum(type == 'Mut') - 1)*sd(qnact[type == 'Mut'])**2 + sum(type == 'Ref') - 1)*sd(qnact[type == 'Ref'])**2 / (length(qnact) - 2)))
 
 varFuns %<>% left_join(meanDiffs, by = 'construct')
+
+tmp = metrop(varFuns$postFun[[981]], initial = c(0,0,1), nbatch = 3, blen = 1000, nspac = 5)
