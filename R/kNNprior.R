@@ -97,8 +97,8 @@ meanDiffs = MPRA.qnactivity %>%
 
 varFuns %<>% left_join(meanDiffs, by = 'construct')
 
-system.time({tmp = metrop(varFuns$postFun[[981]], initial = c(0,0,1), nbatch = 5000, blen = 1, nspac = 5,
-             scale = .12)})
+# system.time({tmp = metrop(varFuns$postFun[[981]], initial = c(0,0,1), nbatch = 5000, blen = 1, nspac = 5,
+#              scale = .12)}) # ~28s
 
 runUlirschMCMC = mclapply(seq_along(varFuns$construct),
                           function(i){
