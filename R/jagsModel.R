@@ -1,4 +1,5 @@
 # Could we just define a JAGS model that works on the raw counts using a negative binomial model rather than the activity based stuff
+# This would also naturally account for variants with barcodes at count 0
 
 library(arm)
 library(rjags)

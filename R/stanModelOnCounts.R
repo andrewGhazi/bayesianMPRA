@@ -1,7 +1,7 @@
 model = "
 data{
-int<lower=0> N ;
-int<lower=0> count[N] ;
+int<lower=0> bcN ;
+int<lower=0> DNAcount[bcN] ;
 int block[N] ;
 int acid[N] ;
 }
