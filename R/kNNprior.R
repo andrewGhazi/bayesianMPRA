@@ -10,7 +10,7 @@ load('data/varInfoWithHistoneMarkAnnotations.RData')
 load('data/gatheredMPRA.RData')
 names(varInfo)[12] = 'transcriptionalShift'
 
-preds = varInfo %>% select(contains('Broad'), contains('Sydh'), eigen:DeepSeaDnaase) %>%
+preds = varInfo %>% select(DeepSeaDnaase, gkmerDelta) %>%
   map_df(~scale(.x)[,1]) #effing scale only outputs matrices
 
 generateDistMat = function(predictors) {
@@ -20,7 +20,8 @@ generateDistMat = function(predictors) {
     as.data.frame() %>% 
     as.matrix %>% 
     dist %>% 
-    as.matrix
+    as.matrix %>% 
+    log1p
   
 }
 
@@ -39,9 +40,9 @@ findKNN = function(k, i, distMat){
 }
 
 k = 30 
-#distMat = generateDistMat(preds)
+distMat = generateDistMat(preds)
 #save(distMat, file = '~/bayesianMPRA/outputs/distMat.RData')
-load('~/bayesianMPRA/outputs/distMat.RData')
+# load('~/bayesianMPRA/outputs/distMat.RData')
 
 varInfo %<>% 
   mutate(kNN = map(1:nrow(.), ~findKNN(k, .x, distMat)),
