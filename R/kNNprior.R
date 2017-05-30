@@ -73,6 +73,7 @@ getPriorFun = function(kNN){
 }
 
 varFuns = MPRA.qnactivity %>% 
+  filter(grepl('CTRL', Block)) %>% 
   group_by(construct) %>% 
   summarise(refDat = list(qnact[type == 'Ref']),
             mutDat = list(qnact[type == 'Mut']),
