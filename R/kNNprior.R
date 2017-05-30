@@ -90,32 +90,32 @@ getPostFun = function(likFun, priorFun) {
 varFuns %<>% mutate(postFun = lapply(1:nrow(varFuns), function(i){getPostFun(varFuns$varLikFun[[i]],
                                                                              varFuns$priorFun[[i]])}))
 
-meanDiffs = MPRA.qnactivity %>% 
-  group_by(construct) %>% 
-  summarise(TS = mean(qnact[type == 'Mut']) - mean(qnact[type == 'Ref']),
-            pooledSD = sqrt(((sum(type == 'Mut') - 1)*sd(qnact[type == 'Mut'])**2 + sum(type == 'Ref') - 1)*sd(qnact[type == 'Ref'])**2 / (length(qnact) - 2)))
-
-varFuns %<>% left_join(meanDiffs, by = 'construct')
-save(varFuns, file = '~/bayesianMPRA/outputs/varFuns.RData')
+# meanDiffs = MPRA.qnactivity %>% 
+#   group_by(construct) %>% 
+#   summarise(TS = mean(qnact[type == 'Mut']) - mean(qnact[type == 'Ref']),
+#             pooledSD = sqrt(((sum(type == 'Mut') - 1)*sd(qnact[type == 'Mut'])**2 + sum(type == 'Ref') - 1)*sd(qnact[type == 'Ref'])**2 / (length(qnact) - 2)))
+# 
+# varFuns %<>% left_join(meanDiffs, by = 'construct')
+# save(varFuns, file = '~/bayesianMPRA/outputs/varFuns.RData')
 
 # system.time({tmp = metrop(varFuns$postFun[[981]], initial = c(0,0,1), nbatch = 5000, blen = 1, nspac = 5,
 #              scale = .12)}) # ~28s
 
-# runUlirschMCMC = mclapply(seq_along(varFuns$construct),
-#                           function(i){
-#                             strt = Sys.time()
-#                             burn = metrop(varFuns$postFun[[i]], 
-#                                           initial = c(0,0,1), 
-#                                           nbatch = 100, 
-#                                           blen = 1, 
-#                                           scale = .12, 
-#                                           nspac = 5)
-#                             res = metrop(burn, 
-#                                          nbatch = 5000, 
-#                                          blen = 1, 
-#                                          scale = .12, 
-#                                          nspac = 5)
-#                             save(res, file = paste0('~/bayesianMPRA/outputs/30NNmcmcOutputs/', varFuns$construct[i] %>% str_replace_all(' ', '_') %>% str_replace('/', '-'), '.RData'))
-#                             stp = Sys.time() - strt
-#                             return(stp)
-#                           }, mc.cores = 20)
+runUlirschMCMC = mclapply(seq_along(varFuns$construct),
+                          function(i){
+                            strt = Sys.time()
+                            burn = metrop(varFuns$postFun[[i]],
+                                          initial = c(0,0,1),
+                                          nbatch = 100,
+                                          blen = 1,
+                                          scale = .12,
+                                          nspac = 5)
+                            res = metrop(burn,
+                                         nbatch = 5000,
+                                         blen = 1,
+                                         scale = .12,
+                                         nspac = 5)
+                            save(res, file = paste0('~/bayesianMPRA/outputs/k30gkmDeepSeaPrior/', varFuns$construct[i] %>% str_replace_all(' ', '_') %>% str_replace('/', '-'), '.RData'))
+                            stp = Sys.time() - strt
+                            return(stp)
+                          }, mc.cores = 20)
