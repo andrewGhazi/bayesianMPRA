@@ -22,7 +22,7 @@ model {
 
 "
 
-initList = ;
+initList = c();
 
 jagsModel = jags.model(file = textConnection(modelString),
                        data = dataList,
