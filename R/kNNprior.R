@@ -6,10 +6,11 @@ library(parallel)
 
 select = dplyr::select
 
-load('data/varInfoWithHistoneMarkAnnotations.RData')
+load('data/varInfoWithHistoneMarkAnnotations.RData') 
 load('data/gatheredMPRA.RData')
 names(varInfo)[12] = 'transcriptionalShift'
 
+# varInfo %>% select(contains('Broad'), contains('Sydh'), eigen:DeepSeaDnaase)
 preds = varInfo %>% select(DeepSeaDnaase, gkmerDelta) %>%
   map_df(~scale(.x)[,1]) #effing scale only outputs matrices
 
