@@ -46,3 +46,13 @@ MPRA.qnactivity %>%
   ggtitle('Failure Case: chr10:46044857 1/3 G --> A') +
   theme(text = element_text(size = 20)) +
   ylab('Quantile Normalized Activity')
+
+plotCon = function(constr){
+  strParts = constr %>% str_split(' ') %>% unlist
+  MPRA.qnactivity %>% 
+    filter(construct == constr) %>% 
+    ggplot(aes(type, qnact)) + 
+    geom_violin(alpha = 0)+
+    geom_jitter(height = 0, width = .25) + 
+    ggtitle(paste0('chr' , strParts[1], ':', strParts[2], ' ', strParts[3]))
+}
