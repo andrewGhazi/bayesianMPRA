@@ -63,10 +63,106 @@ varInfo %<>% left_join(ulirschCounts, by = 'construct')
 
 # estimate prior parameters
 
+set.seed(1280)
+
+dir = "/mnt/labhome/andrew/MPRA/paper_data/"
+
+exampleData = read_delim(file = paste0(dir, "Raw/", "RBC_MPRA_minP_raw.txt"),
+                         delim = "\t",
+                         col_names = T,
+                         col_types = cols(chr = "c")) %>% 
+  dplyr::select(matches('construct|CTRL|DNA|type')) %>% 
+  filter(construct == '1 155271258 1/3') %>% 
+  mutate(bcIndex = 1:nrow(.)) 
+
+dataList = list(nRefBarcode = sum(exampleData$type == 'Ref'),
+                nMutBarcode = sum(exampleData$type == 'Mut'),
+                nDNAblocks = colnames(exampleData) %>% grepl('DNA', .) %>% sum,
+                nRNAblocks = colnames(exampleData) %>% grepl('RNA', .) %>% sum,
+                refDNAmat = exampleData %>% filter(type == 'Ref') %>% dplyr::select(contains('DNA')) %>% as.data.frame %>% as.matrix,
+                refRNAmat = exampleData %>% filter(type == 'Ref') %>% dplyr::select(contains('RNA')) %>% as.data.frame %>% as.matrix,
+                mutDNAmat = exampleData %>% filter(type == 'Mut') %>% dplyr::select(contains('DNA')) %>% as.data.frame %>% as.matrix,
+                mutRNAmat = exampleData %>% filter(type == 'Mut') %>% dplyr::select(contains('RNA')) %>% as.data.frame %>% as.matrix)
+
 neighbors = varInfo %>% 
   filter(construct == '1 155271258 1/3') %>% 
   .$kNN %>% 
   unlist
 
 varInfo[neighbors,]$countData %>% #estimate mean/variances by neighbor, estimate Gamma distributions off of those
+  
+  
+modelStringHier = "
+model {
+  for ( i in 1:nRefBarcode ) {
+    for ( j in 1:nDNAblocks ) {
+      refDNAmat[i,j] ~ dnegbin(pDNA[1,j], rDNA[1,j])
+    }
+    for ( j in 1:nRNAblocks ) {
+      refRNAmat[i,j] ~ dnegbin(pRNA[1,j], rRNA[1,j])
+    }
+  }
+
+  for ( i in 1:nMutBarcode ) {
+    for ( j in 1:nDNAblocks ) {
+      mutDNAmat[i,j] ~ dnegbin(pDNA[2,j], rDNA[2,j])
+    }
+    for ( j in 1:nRNAblocks ) {
+      mutRNAmat[i,j] ~ dnegbin(pRNA[2,j], rRNA[2,j])
+    }
+  }
+
+  for ( i in 1:2 ) { #1 = ref, 2 = mut
+    for ( j in 1:nDNAblocks) {
+      pDNA[i,j] <- rDNA[i,j]/(rDNA[i,j] + mDNA[i,j])
+      rDNA[i,j] ~ dgamma(0.01, 0.01)
+      mDNA[i,j] ~ dgamma(0.01, 0.01)
+      vDNA[i,j] <- rDNA[i,j]*(1-pDNA[i,j])/(pDNA[i,j]*pDNA[i,j])
+    }
+    for ( j in 1:nRNAblocks) {
+      pRNA[i,j] <- rRNA[i,j]/(rRNA[i,j] + mRNA[i,j])
+      rRNA[i,j] ~ dgamma(0.01, 0.01)
+      mRNA[i,j] ~ dgamma(0.01, 0.01)
+      vRNA[i,j] <- rRNA[i,j]*(1-pRNA[i,j])/(pRNA[i,j]*pRNA[i,j])
+    }
+  }
+}
+"
+
+#---------------
+# adaptive mode adapts sampling parameters to increase efficiency. However this makes it not a markov chain and the samples it provides shouldn't be used
+jagsModelHier = jags.model(file = textConnection(modelStringHier),
+                           data = dataList,
+                           n.chains = 3, 
+                           n.adapt = 500) 
+
+#update turns off adaptive mode and provides the actual burn-in
+update(jagsModelHier,
+       n.iter = 500) 
+
+# and coda.samples uses JAGS to do the actual sampling and output it in a form that's easy to analyze with coda diagnostic tools
+codaSamplesHier = coda.samples(jagsModelHier,
+                               variable.names = c('mDNA', 'mRNA', 'vDNA', 'vRNA'),
+                               n.iter = 3334)
+
+computeParamBlockMean = function(param){
+  codaSamplesHier %>% 
+    map_df(~.x %>% as.matrix %>% as.data.frame %>% as.tbl) %>% 
+    dplyr::select(contains(param)) %>% 
+    rowMeans() %>% 
+    as.data.frame %>%
+    as.tbl() %>% 
+    set_colnames(param)
+}
+
+fullPost = c('mDNA[1', 'mDNA[2', 'mRNA[1', 'mRNA[2', 'vDNA[1', 'vDNA[2', 'vRNA[1', 'vRNA[2') %>% #1's = ref, 2's = mut
+  map(computeParamBlockMean) %>% 
+  purrr::reduce(bind_cols) %>% 
+  set_colnames(c('mRefDNA', 'mMutDNA', 'mRefRNA', 'mMutRNA', 'vRefDNA', 'vMutDNA', 'vRefRNA', 'vMutRNA')) %>% 
+  mutate(TS = log(mMutRNA/mMutDNA) - log(mRefRNA/mRefDNA))
+
+fullPost %>% 
+  ggplot(aes(TS)) + 
+  geom_histogram(bins = 50)
+
 
