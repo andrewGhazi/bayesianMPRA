@@ -3,6 +3,8 @@
 library(tidyverse)
 library(stringr)
 library(magrittr)
+library(rjags)
+library(coda)
 
 # code from kNNprior.R to get the kNN-----------
 load('data/varInfoWithHistoneMarkAnnotations.RData') 
@@ -75,6 +77,11 @@ exampleData = read_delim(file = paste0(dir, "Raw/", "RBC_MPRA_minP_raw.txt"),
   filter(construct == '1 155271258 1/3') %>% 
   mutate(bcIndex = 1:nrow(.)) 
 
+neighbors = varInfo %>% 
+  filter(construct == '1 155271258 1/3') %>% 
+  .$kNN %>% 
+  unlist
+
 dataList = list(nRefBarcode = sum(exampleData$type == 'Ref'),
                 nMutBarcode = sum(exampleData$type == 'Mut'),
                 nDNAblocks = colnames(exampleData) %>% grepl('DNA', .) %>% sum,
@@ -83,13 +90,7 @@ dataList = list(nRefBarcode = sum(exampleData$type == 'Ref'),
                 refRNAmat = exampleData %>% filter(type == 'Ref') %>% dplyr::select(contains('RNA')) %>% as.data.frame %>% as.matrix,
                 mutDNAmat = exampleData %>% filter(type == 'Mut') %>% dplyr::select(contains('DNA')) %>% as.data.frame %>% as.matrix,
                 mutRNAmat = exampleData %>% filter(type == 'Mut') %>% dplyr::select(contains('RNA')) %>% as.data.frame %>% as.matrix)
-
-neighbors = varInfo %>% 
-  filter(construct == '1 155271258 1/3') %>% 
-  .$kNN %>% 
-  unlist
-
-varInfo[neighbors,]$countData %>% #estimate mean/variances by neighbor, estimate Gamma distributions off of those
+#varInfo[neighbors,]$countData %>% #estimate mean/variances by neighbor, estimate Gamma distributions off of those
   
   
 modelStringHier = "
@@ -145,15 +146,53 @@ codaSamplesHier = coda.samples(jagsModelHier,
                                variable.names = c('mDNA', 'mRNA', 'vDNA', 'vRNA'),
                                n.iter = 3334)
 
+depthScale = read_delim(file = paste0(dir, "Raw/", "RBC_MPRA_minP_raw.txt"),
+                        delim = "\t",
+                        col_names = T,
+                        col_types = cols(chr = "c")) %>% 
+  dplyr::select(matches('CTRL|DNA')) %>% map_df(sum)
+
+samples = codaSamplesHier %>% 
+  map_df(~.x %>% as.matrix %>% as.data.frame %>% as.tbl)
+
+scaleAppropriately = function(dat, paramType, scaleNumber){
+  if (paramType == 'm') {
+    map_dbl(dat, ~.x*1e6/scaleNumber) 
+  } else {
+    map_dbl(dat, ~.x*1e12/(scaleNumber**2))
+  }
+}
+
+scaleByDepth = function(colname){
+  #Take the column of MCMC parameter samples and scale according to that transfection's depth
+  
+  acidType = colname %>% str_extract('[DR]NA')
+  blockNumber = colname %>% str_extract('[0-9]+]') %>% str_extract('[0-9]')
+  paramType = colname %>% str_extract('^[mv]')
+  scaleNumber = depthScale %>% 
+    dplyr::select(matches(acidType)) %>% 
+    dplyr::select(matches(regex(paste0(blockNumber, '$')))) %>% 
+    .[[1]] # This will always return a 1x1 df so extracting the value with .[[1]] should be okay
+  
+  samples %>% 
+    dplyr::select(starts_with(paramType)) %>% 
+    dplyr::select(matches(acidType)) %>% 
+    dplyr::select(matches(paste0(blockNumber, ']'))) %>% 
+    map_df(., scaleAppropriately, paramType = paramType, scaleNumber = scaleNumber)
+    
+}
+
+depthScaledSamples = samples %>% colnames %>% map_df(~scaleMeans)
+
 computeParamBlockMean = function(param){
-  codaSamplesHier %>% 
-    map_df(~.x %>% as.matrix %>% as.data.frame %>% as.tbl) %>% 
+  depthScaledSamples %>% 
     dplyr::select(contains(param)) %>% 
     rowMeans() %>% 
     as.data.frame %>%
     as.tbl() %>% 
     set_colnames(param)
 }
+
 
 fullPost = c('mDNA[1', 'mDNA[2', 'mRNA[1', 'mRNA[2', 'vDNA[1', 'vDNA[2', 'vRNA[1', 'vRNA[2') %>% #1's = ref, 2's = mut
   map(computeParamBlockMean) %>% 
