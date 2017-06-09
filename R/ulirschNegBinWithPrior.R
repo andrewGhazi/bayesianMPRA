@@ -157,9 +157,9 @@ samples = codaSamplesHier %>%
 
 scaleAppropriately = function(dat, paramType, scaleNumber){
   if (paramType == 'm') {
-    map_dbl(dat, ~.x*1e6/scaleNumber) 
+    map_df(dat, ~.x*1e6/scaleNumber) 
   } else {
-    map_dbl(dat, ~.x*1e12/(scaleNumber**2))
+    map_df(dat, ~.x*1e12/(scaleNumber**2))
   }
 }
 
@@ -175,14 +175,12 @@ scaleByDepth = function(colname){
     .[[1]] # This will always return a 1x1 df so extracting the value with .[[1]] should be okay
   
   samples %>% 
-    dplyr::select(starts_with(paramType)) %>% 
-    dplyr::select(matches(acidType)) %>% 
-    dplyr::select(matches(paste0(blockNumber, ']'))) %>% 
-    map_df(., scaleAppropriately, paramType = paramType, scaleNumber = scaleNumber)
+    .[colname] %>% 
+    scaleAppropriately(paramType = paramType, scaleNumber = scaleNumber)
     
 }
 
-depthScaledSamples = samples %>% colnames %>% map_df(~scaleMeans)
+depthScaledSamples = samples %>% colnames %>% map(scaleByDepth) %>% purrr::reduce(bind_cols)
 
 computeParamBlockMean = function(param){
   depthScaledSamples %>% 
