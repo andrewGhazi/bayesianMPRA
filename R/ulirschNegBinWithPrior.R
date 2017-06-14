@@ -90,6 +90,31 @@ dataList = list(nRefBarcode = sum(exampleData$type == 'Ref'),
                 refRNAmat = exampleData %>% filter(type == 'Ref') %>% dplyr::select(contains('RNA')) %>% as.data.frame %>% as.matrix,
                 mutDNAmat = exampleData %>% filter(type == 'Mut') %>% dplyr::select(contains('DNA')) %>% as.data.frame %>% as.matrix,
                 mutRNAmat = exampleData %>% filter(type == 'Mut') %>% dplyr::select(contains('RNA')) %>% as.data.frame %>% as.matrix)
+
+safelyFitNegBin = function(countVec){
+  #This doesn't quite suppress all error messages but it does output the right things
+  #an error can still be printed when there's very low variability of low counts (e.g. c(1, rep(0, 14)))
+  safely(fitdist, 
+         otherwise = list(estimate = purrr::set_names(rep(NA, 2), nm = c('mu', 'size'))), 
+         quiet = TRUE)(countVec, 'nbinom')
+}
+
+estTransfectionParameters = function(countDat){
+  # countDat - a tibble with a type (ref/mut) column and columns of observed MPRA counts in given transfections
+  # uses fitdistrplus::fitdist because MASS::fitdistr was cracking wise at me
+  
+  countDat %>% 
+    gather(block, count, -type) %>% 
+    group_by(type, block) %>% 
+    summarise(MLEnegBin = list(safelyFitNegBin(count))) %>% 
+    ungroup %>% 
+    mutate(muEst = map_dbl(MLEnegBin, ~.x$result$estimate['mu']),
+           sizeEst = map_dbl(MLEnegBin, ~.x$result$estimate['size'])) %>% 
+    dplyr::select(-MLEnegBin)
+}
+
+varInfo %<>% 
+  mutate(negBinParams = map(countData, estTransfectionParameters))
 #varInfo[neighbors,]$countData %>% #estimate mean/variances by neighbor, estimate Gamma distributions off of those
   
   
