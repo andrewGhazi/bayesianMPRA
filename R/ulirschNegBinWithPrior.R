@@ -4,7 +4,9 @@ library(tidyverse)
 library(stringr)
 library(magrittr)
 library(rjags)
+library(fitdistrplus)
 library(coda)
+library(parallel)
 
 # code from kNNprior.R to get the kNN-----------
 load('data/varInfoWithHistoneMarkAnnotations.RData') 
@@ -113,8 +115,10 @@ estTransfectionParameters = function(countDat){
     dplyr::select(-MLEnegBin)
 }
 
+ncores = 20
+
 varInfo %<>% 
-  mutate(negBinParams = map(countData, estTransfectionParameters))
+  mutate(negBinParams = mclapply(countData, estTransfectionParameters, mc.cores = ncores))
 #varInfo[neighbors,]$countData %>% #estimate mean/variances by neighbor, estimate Gamma distributions off of those
   
   
