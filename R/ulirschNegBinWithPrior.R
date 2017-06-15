@@ -84,14 +84,8 @@ neighbors = varInfo %>%
   .$kNN %>% 
   unlist
 
-dataList = list(nRefBarcode = sum(exampleData$type == 'Ref'),
-                nMutBarcode = sum(exampleData$type == 'Mut'),
-                nDNAblocks = colnames(exampleData) %>% grepl('DNA', .) %>% sum,
-                nRNAblocks = colnames(exampleData) %>% grepl('RNA', .) %>% sum,
-                refDNAmat = exampleData %>% filter(type == 'Ref') %>% dplyr::select(contains('DNA')) %>% as.data.frame %>% as.matrix,
-                refRNAmat = exampleData %>% filter(type == 'Ref') %>% dplyr::select(contains('RNA')) %>% as.data.frame %>% as.matrix,
-                mutDNAmat = exampleData %>% filter(type == 'Mut') %>% dplyr::select(contains('DNA')) %>% as.data.frame %>% as.matrix,
-                mutRNAmat = exampleData %>% filter(type == 'Mut') %>% dplyr::select(contains('RNA')) %>% as.data.frame %>% as.matrix)
+# NegBin MLE estimates -----------
+# For each variant, we fit negative binomial distributions to the counts from each block*allele
 
 safelyFitNegBin = function(countVec){
   #This doesn't quite suppress all error messages but it does output the right things
@@ -119,8 +113,39 @@ ncores = 20
 
 varInfo %<>% 
   mutate(negBinParams = mclapply(countData, estTransfectionParameters, mc.cores = ncores))
-#varInfo[neighbors,]$countData %>% #estimate mean/variances by neighbor, estimate Gamma distributions off of those
-  
+
+# Gamma hyper-prior estimation ---------
+# Now for each variant, we take the negative binomial parameters of the variant's NEIGHBORS estimated above to define an hyper-prior gamma distribution
+# So the 30 nearest neighbor's negative binomials are like 30 samples from the distribution that each block's parameters come from
+
+safelyFitGamma = function(neighborMuEstimates, type, block){
+  cat(paste(unique(type), ', ', unique(block), '\n'))
+  safely(fitdist)(as.vector(na.omit(neighborMuEstimates)), 'gamma')
+}
+
+varInfo[varInfo$kNN[[1]],]$negBinParams %>% 
+  purrr::reduce(bind_rows) %>% 
+  group_by(type, block) %>% 
+  summarise(muHyperParams = list(safelyFitGamma(muEst, type, block)),
+            sizeHyperParams = list(safelyFitGamma(sizeEst, type, block))) %>% 
+  ungroup
+
+
+varInfo %>% 
+  mutate()
+
+# Now the actual JAGS part --------------
+
+dataList = list(nRefBarcode = sum(exampleData$type == 'Ref'),
+                nMutBarcode = sum(exampleData$type == 'Mut'),
+                nDNAblocks = colnames(exampleData) %>% grepl('DNA', .) %>% sum,
+                nRNAblocks = colnames(exampleData) %>% grepl('RNA', .) %>% sum,
+                refDNAmat = exampleData %>% filter(type == 'Ref') %>% dplyr::select(contains('DNA')) %>% as.data.frame %>% as.matrix,
+                refRNAmat = exampleData %>% filter(type == 'Ref') %>% dplyr::select(contains('RNA')) %>% as.data.frame %>% as.matrix,
+                mutDNAmat = exampleData %>% filter(type == 'Mut') %>% dplyr::select(contains('DNA')) %>% as.data.frame %>% as.matrix,
+                mutRNAmat = exampleData %>% filter(type == 'Mut') %>% dplyr::select(contains('RNA')) %>% as.data.frame %>% as.matrix,
+                muHyperParams = ,
+                sizeHyperParams = )
   
 modelStringHier = "
 model {
