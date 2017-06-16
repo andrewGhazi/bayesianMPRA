@@ -118,16 +118,16 @@ varInfo %<>%
 # Now for each variant, we take the negative binomial parameters of the variant's NEIGHBORS estimated above to define an hyper-prior gamma distribution
 # So the 30 nearest neighbor's negative binomials are like 30 samples from the distribution that each block's parameters come from
 
-safelyFitGamma = function(neighborMuEstimates, type, block){
-  cat(paste(unique(type), ', ', unique(block), '\n'))
+safelyFitGamma = function(neighborMuEstimates){ #, type, block
+  #cat(paste(unique(type), ', ', unique(block), '\n'))
   safely(fitdist)(as.vector(na.omit(neighborMuEstimates)), 'gamma')
 }
 
 varInfo[varInfo$kNN[[1]],]$negBinParams %>% 
   purrr::reduce(bind_rows) %>% 
   group_by(type, block) %>% 
-  summarise(muHyperParams = list(safelyFitGamma(muEst, type, block)),
-            sizeHyperParams = list(safelyFitGamma(sizeEst, type, block))) %>% 
+  summarise(muHyperParams = list(safelyFitGamma(muEst)),
+            sizeHyperParams = list(safelyFitGamma(sizeEst))) %>% 
   ungroup
 
 
