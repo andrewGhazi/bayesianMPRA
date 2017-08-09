@@ -78,47 +78,46 @@ generateDistMat = function(predictors) {
 
 distMat = generateDistMat(preds)
 
-findWeights = function(i, distMat, minNumContributing = 30){
+findWeights = function(i, distMat, minDistKernel, minNumContributing = 30, increaseFold = 1.5){
   # for the ith variant, produce a vector of weightings such that at minimum minNumContributing
   # variants meaningfully contribute (i.e. cumsum(sortedWeights)[30] <= .99)
+  # arguments after the 2nd are heuristics that may need tuning
   
-  distKernel = .01
+  # Initialize the kernel at some small value based on the typical distances in the input distance matrix (precomputed for speed)
+  distKernel = minDistKernel
+  
   rawWeights = sort(dnorm(distMat[i,-i], sd = distKernel), decreasing = TRUE, index.return = TRUE)
   scaledWeights = rawWeights$x / sum(rawWeights$x)
   
+  notEnoughContributing = cumsum(scaledWeights[1:minNumContributing])[minNumContributing] > .99
+  #allZero = all(rawWeights$x == 0)
+  
   # if there aren't more than minNumContributing variants providing meaningful contribution to the prior
-  if (cumsum(scaledWeights[1:minNumContributing])[minNumContributing] > .99) { #minNumContributing and .99 are both heuristics that may need tuning
+  if (is.na(notEnoughContributing) || notEnoughContributing) { 
     
     # iteratively increase the kernel bandwith until they do
-    while (cumsum(scaledWeights[1:minNumContributing])[minNumContributing] > .99) {
-      distKernel = distKernel * 1.5
+    while (is.na(notEnoughContributing) || notEnoughContributing) {
+      distKernel = distKernel * increaseFold
       rawWeights = sort(dnorm(distMat[i,-i], sd = distKernel), decreasing = TRUE, index.return = TRUE)
       scaledWeights = rawWeights$x / sum(rawWeights$x)
+      
+      notEnoughContributing = cumsum(scaledWeights[1:minNumContributing])[minNumContributing] > .99
+      #allZero = all(scaledWeights == 0)
     }
   }
   
-  scaledWeights
+  list(x = scaledWeights, ix = rawWeights$ix)
 }
 
-findKNN = function(k, i, distMat){
-  # For the ith variant, return the indices of the k nearest neighbors in the dist mat
-  
-  res = sort(distMat[i,], index.return = TRUE)
-  
-  # If there are a lot that have exactly the same predictors, just return the indices of all of them
-  if (all(res$x[1:(k+1)] == 0)) {# k + 1 because it will always return the 0 for the ith item
-    return(res$ix[res$x == 0])
-  } 
-  
-  res$ix = res$ix[!(res$ix %in% i)]
-  res$ix[1:k]
-}
+# Initialize the kernel at some small value based on the typical distances in the input distance matrix
+minDistKernel = distMat[upper.tri(distMat)] %>% 
+  unlist() %>% 
+  sort() %>% #sort all observed distances
+  .[. > 0] %>% 
+  quantile(.001) # pick the .1th quantile. The only variants that will use this kernel will be in very densely populated regions of predictor space
 
-
-k = 30
 varInfo %<>% 
-  mutate(kNN = map(1:nrow(.), ~findKNN(k, .x, distMat)),
-         numNeigh = map_int(kNN, length))
+  mutate(weightList = map(1:nrow(.), ~findWeights(.x, distMat, minDistKernel)))
 
 ### read in counts -----------
 dir = "/mnt/labhome/andrew/MPRA/paper_data/"
