@@ -143,9 +143,9 @@ dataList = list(nRefBarcode = sum(exampleData$type == 'Ref'),
                 refDNAmat = exampleData %>% filter(type == 'Ref') %>% dplyr::select(contains('DNA')) %>% as.data.frame %>% as.matrix,
                 refRNAmat = exampleData %>% filter(type == 'Ref') %>% dplyr::select(contains('RNA')) %>% as.data.frame %>% as.matrix,
                 mutDNAmat = exampleData %>% filter(type == 'Mut') %>% dplyr::select(contains('DNA')) %>% as.data.frame %>% as.matrix,
-                mutRNAmat = exampleData %>% filter(type == 'Mut') %>% dplyr::select(contains('RNA')) %>% as.data.frame %>% as.matrix,
-                muHyperParams = ,
-                sizeHyperParams = )
+                mutRNAmat = exampleData %>% filter(type == 'Mut') %>% dplyr::select(contains('RNA')) %>% as.data.frame %>% as.matrix)
+#muHyperParams = c(.01, .01),
+#sizeHyperParams = c(.01, .01)
   
 modelStringHier = "
 model {
@@ -199,6 +199,7 @@ update(jagsModelHier,
 codaSamplesHier = coda.samples(jagsModelHier,
                                variable.names = c('mDNA', 'mRNA', 'vDNA', 'vRNA'),
                                n.iter = 3334)
+save(codaSamplesHier, file = '~/bayesianMPRA/outputs/jagsOutput/exampleJAGSoutput.RData')
 
 depthScale = read_delim(file = paste0(dir, "Raw/", "RBC_MPRA_minP_raw.txt"),
                         delim = "\t",
