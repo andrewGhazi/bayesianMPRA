@@ -1,6 +1,8 @@
 library(tidyverse)
 library(magrittr)
 library(rstan)
+library(parallel)
+library(fitdistrplus)
 
 ### Stan model -----
 modelString = "
@@ -139,7 +141,62 @@ ulirschCounts = read_delim(file = paste0(dir, "Raw/", "RBC_MPRA_minP_raw.txt"),
 
 varInfo %<>% left_join(ulirschCounts, by = 'construct')
 
-## TODO: keep adapting over ulirschNegBinPrior
+### Fit NegBin estimates to each variant -----
+safelyFitNegBin = function(countVec){
+  #This doesn't quite suppress all error messages but it does output the right things
+  #an error can still be printed when there's very low variability of low counts (e.g. c(1, rep(0, 14)))
+  safely(fitdist, 
+         otherwise = list(estimate = purrr::set_names(rep(NA, 2), nm = c('mu', 'size'))), 
+         quiet = TRUE)(countVec, 'nbinom')
+}
+
+estTransfectionParameters = function(countDat){
+  # countDat - a tibble with a type (ref/mut) column and columns of observed MPRA counts in given transfections
+  # uses fitdistrplus::fitdist because MASS::fitdistr was cracking wise at me
+  
+  countDat %>% 
+    gather(block, count, -type) %>% 
+    group_by(type, block) %>% 
+    summarise(MLEnegBin = list(safelyFitNegBin(count))) %>% 
+    ungroup %>% 
+    mutate(muEst = map_dbl(MLEnegBin, ~.x$result$estimate['mu']),
+           sizeEst = map_dbl(MLEnegBin, ~.x$result$estimate['size'])) %>% 
+    dplyr::select(-MLEnegBin)
+}
+
+
+ncores = 20
+
+varInfo %<>% 
+  mutate(negBinParams = mclapply(countData, estTransfectionParameters, mc.cores = ncores))
+
+paramDF = varInfo %>% select(construct, negBinParams)
+
+### Fit weighted gamma hyperprior on negBin parameters to each variant ------- TODO fix this code
+safelyFitGamma = function(constructInput, paramEstimates, proximityWeightList){ 
+  variantsToRemove = which(is.na(paramEstimates))
+  
+  if (length(variantsToRemove > 0)) {
+    paramEstimates = paramEstimates[-variantsToRemove]
+    proximityWeightList$x = proximityWeightList$x[-variantsToRemove]
+    proximityWeightList$ix = proximityWeightList$ix[-variantsToRemove]
+  }
+  
+  paramDF %>% 
+    filter(construct != constructInput) %>% 
+    mutate(weight = proximityWeightList$x[proximityWeightList$ix])
+  
+  safely(fitdist)(as.vector(na.omit(paramEstimates[proximityWeightList$ix])), 'gamma', weights = proximityWeightList$x)
+}
+
+varInfo[varInfo$kNN[[1]],]$negBinParams %>% 
+  purrr::reduce(bind_rows) %>% 
+  group_by(type, block) %>% 
+  summarise(muHyperParams = list(safelyFitGamma(muEst)),
+            sizeHyperParams = list(safelyFitGamma(sizeEst))) %>% 
+  ungroup
+
+## TODO: keep adapting over ulirschNegBinPrior ------
 ## 1. fit neg binomials
 ## 2. fit WEIGHTED gamma hyperprior to RNA counts
 ## 3. Fit marginal gamma hyperprior on DNA counts
