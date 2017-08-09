@@ -78,6 +78,28 @@ generateDistMat = function(predictors) {
 
 distMat = generateDistMat(preds)
 
+findWeights = function(i, distMat, minNumContributing = 30){
+  # for the ith variant, produce a vector of weightings such that at minimum minNumContributing
+  # variants meaningfully contribute (i.e. cumsum(sortedWeights)[30] <= .99)
+  
+  distKernel = .01
+  rawWeights = sort(dnorm(distMat[i,-i], sd = distKernel), decreasing = TRUE, index.return = TRUE)
+  scaledWeights = rawWeights$x / sum(rawWeights$x)
+  
+  # if there aren't more than minNumContributing variants providing meaningful contribution to the prior
+  if (cumsum(scaledWeights[1:minNumContributing])[minNumContributing] > .99) { #minNumContributing and .99 are both heuristics that may need tuning
+    
+    # iteratively increase the kernel bandwith until they do
+    while (cumsum(scaledWeights[1:minNumContributing])[minNumContributing] > .99) {
+      distKernel = distKernel * 1.5
+      rawWeights = sort(dnorm(distMat[i,-i], sd = distKernel), decreasing = TRUE, index.return = TRUE)
+      scaledWeights = rawWeights$x / sum(rawWeights$x)
+    }
+  }
+  
+  scaledWeights
+}
+
 findKNN = function(k, i, distMat){
   # For the ith variant, return the indices of the k nearest neighbors in the dist mat
   
