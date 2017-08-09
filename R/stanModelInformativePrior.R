@@ -5,47 +5,55 @@ library(rstan)
 ### Stan model -----
 modelString = "
 data{
-int<lower=0> nRefBarcode ;
-int<lower=0> nMutBarcode ;
-int<lower=0> nDNAblocks ;
-int<lower=0> nRNAblocks ;
-int<lower=0> refDNAmat[nRefBarcode, nDNAblocks] ;
-int<lower=0> refRNAmat[nRefBarcode, nRNAblocks] ;
-int<lower=0> mutDNAmat[nMutBarcode, nDNAblocks] ;
-int<lower=0> mutRNAmat[nMutBarcode, nRNAblocks] ;
-real<lower=0> muHyperParams[2] ;
-real<lower=0> phiHyperParams[2] ;
+  int<lower=0> nRefBarcode ; // number of barcodes in ref allele
+  int<lower=0> nMutBarcode ;
+  int<lower=0> nDNAblocks ; // number of DNA replicates / blocks / samples / transfections
+  int<lower=0> nRNAblocks ;
+  int<lower=0> refDNAmat[nRefBarcode, nDNAblocks] ; // MPRA count matrix. Rows = barcodes, columns = samples/blocks
+  int<lower=0> refRNAmat[nRefBarcode, nRNAblocks] ;
+  int<lower=0> mutDNAmat[nMutBarcode, nDNAblocks] ;
+  int<lower=0> mutRNAmat[nMutBarcode, nRNAblocks] ;
+  real<lower=0> muRefRNAHyperParams[2] ; // gamma hyper-parameters on negative binomial parameters
+  real<lower=0> phiRefRNAHyperParams[2] ;
+  real<lower=0> muMutRNAHyperParams[2] ;
+  real<lower=0> phiMutRNAHyperParams[2] ;
+  real<lower=0> muDNAHyperParams[2] ;
+  real<lower=0> phiDNAHyperParams[2] ;
 }
 parameters{
-real<lower=0> muRefDNA[nDNAblocks] ;
-real<lower=0> muRefRNA[nRNAblocks] ;
-real<lower=0> muMutDNA[nDNAblocks] ;
-real<lower=0> muMutRNA[nRNAblocks] ;
-real<lower=0> phiRefDNA[nDNAblocks] ;
-real<lower=0> phiRefRNA[nRNAblocks] ;
-real<lower=0> phiMutDNA[nDNAblocks] ;
-real<lower=0> phiMutRNA[nRNAblocks] ;
+  real<lower=0> muRefDNA[nDNAblocks] ; //mean parameters for each block in each allele for each nucleic acid
+  real<lower=0> muRefRNA[nRNAblocks] ;
+  real<lower=0> muMutDNA[nDNAblocks] ;
+  real<lower=0> muMutRNA[nRNAblocks] ;
+  real<lower=0> phiRefDNA[nDNAblocks] ; // size parameters
+  real<lower=0> phiRefRNA[nRNAblocks] ;
+  real<lower=0> phiMutDNA[nDNAblocks] ;
+  real<lower=0> phiMutRNA[nRNAblocks] ;
 }
 model{
+  
+  // negative binomial parameters come from gamma hyper-priors
+  muRefDNA ~ gamma(muDNAHyperParams[1], muDNAHyperParams[2]) ; 
+  muMutDNA ~ gamma(muDNAHyperParams[1], muDNAHyperParams[2]) ;
+  phiRefDNA ~ gamma(phiDNAHyperParams[1], phiDNAHyperParams[2]) ;
+  phiMutDNA ~ gamma(phiDNAHyperParams[1], phiDNAHyperParams[2]) ;
+  
+  muRefRNA ~ gamma(muRefRNAHyperParams[1], muRefRNAHyperParams[2]) ;
+  muMutRNA ~ gamma(muMutRNAHyperParams[1], muMutRNAHyperParams[2]) ;
+  
+  phiRefRNA ~ gamma(phiRefRNAHyperParams[1], phiRefRNAHyperParams[2]) ;
+  phiMutRNA ~ gamma(phiMutRNAHyperParams[1], phiMutRNAHyperParams[2]) ;
 
-muRefDNA ~ gamma(muHyperParams[1], muHyperParams[2]) ;
-muRefRNA ~ gamma(muHyperParams[1], muHyperParams[2]) ;
-muMutDNA ~ gamma(muHyperParams[1], muHyperParams[2]) ;
-muMutRNA ~ gamma(muHyperParams[1], muHyperParams[2]) ;
+  // count data comes from the specified negative binomial
+  for (i in 1:nDNAblocks){ 
+    refDNAmat[,i] ~ neg_binomial_2(muRefDNA[i], phiRefDNA[i]) ;
+    mutDNAmat[,i] ~ neg_binomial_2(muMutDNA[i], phiMutDNA[i]) ;
+  }
 
-phiRefDNA ~ gamma(phiHyperParams[1], phiHyperParams[2]) ;
-phiRefRNA ~ gamma(phiHyperParams[1], phiHyperParams[2]) ;
-phiMutDNA ~ gamma(phiHyperParams[1], phiHyperParams[2]) ;
-phiMutRNA ~ gamma(phiHyperParams[1], phiHyperParams[2]) ;
-
-for (i in 1:nDNAblocks){
-refDNAmat[,i] ~ neg_binomial_2(muRefDNA[i], phiRefDNA[i]) ;
-mutDNAmat[,i] ~ neg_binomial_2(muMutDNA[i], phiMutDNA[i]) ;
-}
-for (i in 1:nRNAblocks){
-refRNAmat[,i] ~ neg_binomial_2(muRefRNA[i], phiRefRNA[i]) ;
-mutRNAmat[,i] ~ neg_binomial_2(muMutRNA[i], phiMutRNA[i]) ;
-}
+  for (i in 1:nRNAblocks){
+    refRNAmat[,i] ~ neg_binomial_2(muRefRNA[i], phiRefRNA[i]) ;
+    mutRNAmat[,i] ~ neg_binomial_2(muMutRNA[i], phiMutRNA[i]) ;
+  }
 }
 "
 
