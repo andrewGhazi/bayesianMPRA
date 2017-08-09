@@ -130,3 +130,11 @@ ulirschCounts = read_delim(file = paste0(dir, "Raw/", "RBC_MPRA_minP_raw.txt"),
   nest(.key = countData)
 
 varInfo %<>% left_join(ulirschCounts, by = 'construct')
+
+## TODO: keep adapting over ulirschNegBinPrior
+## 1. fit neg binomials
+## 2. fit WEIGHTED gamma hyperprior to RNA counts
+## 3. Fit marginal gamma hyperprior on DNA counts
+## 4. adapt model code
+## 5. run sampling
+## 6. money
