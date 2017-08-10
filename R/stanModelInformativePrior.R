@@ -96,10 +96,11 @@ findWeights = function(i, distMat, minDistKernel, minNumContributing = 30, incre
   # Initialize the kernel at some small value based on the typical distances in the input distance matrix (precomputed for speed)
   distKernel = minDistKernel
   
-  rawWeights = sort(dnorm(distMat[i,-i], sd = distKernel), decreasing = TRUE, index.return = TRUE)
-  scaledWeights = rawWeights$x / sum(rawWeights$x)
+  rawWeights = dnorm(distMat[i,-i], sd = distKernel)
+  scaledWeights = rawWeights / sum(rawWeights)
+  sorted = sort(scaledWeights, decreasing = TRUE)
   
-  notEnoughContributing = cumsum(scaledWeights[1:minNumContributing])[minNumContributing] > .99
+  notEnoughContributing = cumsum(sorted[1:minNumContributing])[minNumContributing] > .99
   #allZero = all(rawWeights$x == 0)
   
   # if there aren't more than minNumContributing variants providing meaningful contribution to the prior
@@ -108,15 +109,15 @@ findWeights = function(i, distMat, minDistKernel, minNumContributing = 30, incre
     # iteratively increase the kernel bandwith until they do
     while (is.na(notEnoughContributing) || notEnoughContributing) {
       distKernel = distKernel * increaseFold
-      rawWeights = sort(dnorm(distMat[i,-i], sd = distKernel), decreasing = TRUE, index.return = TRUE)
-      scaledWeights = rawWeights$x / sum(rawWeights$x)
+      rawWeights = dnorm(distMat[i,-i], sd = distKernel)
+      scaledWeights = rawWeights / sum(rawWeights)
+      sorted = sort(scaledWeights, decreasing = TRUE)
       
-      notEnoughContributing = cumsum(scaledWeights[1:minNumContributing])[minNumContributing] > .99
-      #allZero = all(scaledWeights == 0)
+      notEnoughContributing = cumsum(sorted[1:minNumContributing])[minNumContributing] > .99
     }
   }
   
-  list(x = scaledWeights, ix = rawWeights$ix)
+  scaledWeights
 }
 
 # Initialize the kernel at some small value based on the typical distances in the input distance matrix
@@ -127,7 +128,7 @@ minDistKernel = distMat[upper.tri(distMat)] %>%
   quantile(.001) # pick the .1th quantile. The only variants that will use this kernel will be in very densely populated regions of predictor space
 
 varInfo %<>% 
-  mutate(weightList = map(1:nrow(.), ~findWeights(.x, distMat, minDistKernel)))
+  mutate(weights = map(1:nrow(.), ~findWeights(.x, distMat, minDistKernel)))
 
 ### read in counts -----------
 dir = "/mnt/labhome/andrew/MPRA/paper_data/"
@@ -170,21 +171,20 @@ ncores = 20
 varInfo %<>% 
   mutate(negBinParams = mclapply(countData, estTransfectionParameters, mc.cores = ncores))
 
-paramDF = varInfo %>% select(construct, negBinParams)
+paramDF = varInfo %>% dplyr::select(construct, negBinParams)
 
 ### Fit weighted gamma hyperprior on negBin parameters to each variant ------- TODO fix this code
-safelyFitGamma = function(constructInput, paramEstimates, proximityWeightList){ 
-  variantsToRemove = which(is.na(paramEstimates))
+safelyFitGamma = function(constructNum){ 
+  constr = varInfo[constructNum,]
+  others = varInfo[-constructNum,]
   
-  if (length(variantsToRemove > 0)) {
-    paramEstimates = paramEstimates[-variantsToRemove]
-    proximityWeightList$x = proximityWeightList$x[-variantsToRemove]
-    proximityWeightList$ix = proximityWeightList$ix[-variantsToRemove]
-  }
-  
-  paramDF %>% 
-    filter(construct != constructInput) %>% 
-    mutate(weight = proximityWeightList$x[proximityWeightList$ix])
+  others %>% 
+    mutate(weight = constr$weights[[1]]) %>% 
+    dplyr::select(construct, negBinParams, weight) %>% 
+    unnest %>% 
+    group_by(type, block) %>% 
+    summarise(muGammaHyperPrior = list(safely(fitdist)(muEst, 'gamma', weights = weight)),
+              sizeGammaHyperPrior = list(safely(fitdist)(sizeEst, 'gamma', weights = weight)))
   
   safely(fitdist)(as.vector(na.omit(paramEstimates[proximityWeightList$ix])), 'gamma', weights = proximityWeightList$x)
 }
