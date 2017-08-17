@@ -232,15 +232,32 @@ fitGammaHyperPriors = function(constructNum){
   others = varInfo[-constructNum,]
   
   
-  others %>% 
+  dataForEstimates = others %>% 
     mutate(weight = constr$weights[[1]]) %>% 
     dplyr::select(construct, negBinParams, weight) %>% 
     unnest %>% 
     na.omit %>% 
-    filter(weight > 1e-4*sort(constr$weights[[1]], decreasing = TRUE)[30]) %>%  # This is necessary for speed)
+    filter(weight > 1e-4*sort(constr$weights[[1]], decreasing = TRUE)[30]) # This is necessary for speed)
+  
+  muDat = dataForEstimates$muEst
+  initialMuGuess = list(shape = mean(muDat)**2 / var(muDat), 
+                        rate = mean(muDat) / var(muDat))
+  
+  sizeDat = dataForEstimates$sizeEst[dataForEstimates$sizeEst < quantile(dataForEstimates$sizeEst, .99)]
+  initialSizeGuess = list(shape = mean(sizeDat)**2 / var(sizeDat), 
+                        rate = mean(sizeDat) / var(sizeDat))
+  
+  dataForEstimates %>% 
     group_by(type, block) %>% 
-    summarise(muGammaHyperPriors = list(fitdistMod(muEst, 'gamma', weights = weight)),
-              sizeGammaHyperPriors = list(fitdistMod(sizeEst[sizeEst < quantile(sizeEst, .99)], 'gamma', weights = weight[sizeEst < quantile(sizeEst, .99)]))) %>% 
+    summarise(muGammaHyperPriors = list(fitdistMod(muEst, 
+                                                   'gamma', 
+                                                   weights = weight, 
+                                                   start = initialMuGuess,
+                                                   control = list(parscale = c(1,.01)))),
+              sizeGammaHyperPriors = list(fitdistMod(sizeEst[sizeEst < quantile(sizeEst, .99)], 
+                                                     'gamma', 
+                                                     weights = weight[sizeEst < quantile(sizeEst, .99)], 
+                                                     start = initialSizeGuess))) %>% 
     ungroup
   
   # Estimates of the size parameter can be unstable (because variance = mu + mu^2
@@ -251,6 +268,9 @@ fitGammaHyperPriors = function(constructNum){
 
 varInfo %<>% 
   mutate(gammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20))
+
+# system.time(varInfo <- varInfo %>% 
+#               mutate(gammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20)))
 
 varInfo[varInfo$kNN[[1]],]$negBinParams %>% 
   purrr::reduce(bind_rows) %>% 
