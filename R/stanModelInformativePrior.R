@@ -3,6 +3,7 @@ library(magrittr)
 library(rstan)
 library(parallel)
 library(fitdistrplus)
+source('R/mledistModified.R')
 
 ### Stan model -----
 modelString = "
@@ -154,6 +155,7 @@ safelyFitNegBin = function(countVec){
 estTransfectionParameters = function(countDat){
   # countDat - a tibble with a type (ref/mut) column and columns of observed MPRA counts in given transfections
   # uses fitdistrplus::fitdist because MASS::fitdistr was cracking wise at me
+  # using a modified version of fitdistrplus::mledist because the regular version can't use non-integer weights
   
   countDat %>% 
     gather(block, count, -type) %>% 
@@ -174,20 +176,81 @@ varInfo %<>%
 paramDF = varInfo %>% dplyr::select(construct, negBinParams)
 
 ### Fit weighted gamma hyperprior on negBin parameters to each variant ------- TODO fix this code
-safelyFitGamma = function(constructNum){ 
+fitMuGamma = function(weights, muEstimates){
+  fnToMin = function(paramVec){-sum(weights * dgamma(muEstimates, 
+                                                     shape = paramVec[1], 
+                                                     rate = paramVec[2], 
+                                                     log = TRUE))}
+  
+  meanEst = mean(muEstimates)
+  varEst = var(muEstimates)
+  
+  initialGuess = c(meanEst**2 / varEst, meanEst/varEst)
+  
+  optimRes = optim(initialGuess, 
+                   fnToMin, 
+                   lower = c(0,0)) #, 
+  #control = list(parscale = c(1, .01))
+  
+  # The parscale control option is needed to scale the optimization proposals.
+  # If the rate suggestions are too huge then fnToMin throws out Inf which
+  # breaks the optimizer
+  
+  if (optimRes$convergence != 0) {
+    stop(paste0('problems with gamma fitting, convergence code: ', optimRes$convergence))
+  }
+  
+  optimRes$par %>% 
+    set_names(c('shape', 'rate'))
+}
+
+fitSizeGamma = function(weights, sizeEstimates){
+  # differs only where the optimization is initialized
+  fnToMin = function(paramVec){-sum(weights * dgamma(sizeEstimates, 
+                                                     shape = paramVec[1], 
+                                                     rate = paramVec[2], 
+                                                     log = TRUE))}
+  meanEst = mean(sizeEstimates)
+  varEst = var(sizeEstimates)
+  
+  initialGuess = c(meanEst**2 / varEst, meanEst/varEst)
+  
+  optimRes = optim(initialGuess, 
+                   fnToMin, 
+                   lower = c(0,0)) 
+  
+  if (optimRes$convergence != 0) {
+    stop(paste0('problems with gamma fitting, convergence code: ', optimRes$convergence))
+  }
+  
+  optimRes$par %>% 
+    set_names(c('shape', 'rate'))
+}
+
+fitGammaHyperPriors = function(constructNum){ 
   constr = varInfo[constructNum,]
   others = varInfo[-constructNum,]
+  
   
   others %>% 
     mutate(weight = constr$weights[[1]]) %>% 
     dplyr::select(construct, negBinParams, weight) %>% 
     unnest %>% 
+    na.omit %>% 
+    filter(weight > 1e-4*sort(constr$weights[[1]], decreasing = TRUE)[30]) %>%  # This is necessary for speed)
     group_by(type, block) %>% 
-    summarise(muGammaHyperPrior = list(safely(fitdist)(muEst, 'gamma', weights = weight)),
-              sizeGammaHyperPrior = list(safely(fitdist)(sizeEst, 'gamma', weights = weight)))
+    summarise(muGammaHyperPriors = list(fitdistMod(muEst, 'gamma', weights = weight)),
+              sizeGammaHyperPriors = list(fitdistMod(sizeEst[sizeEst < quantile(sizeEst, .99)], 'gamma', weights = weight[sizeEst < quantile(sizeEst, .99)]))) %>% 
+    ungroup
   
-  safely(fitdist)(as.vector(na.omit(paramEstimates[proximityWeightList$ix])), 'gamma', weights = proximityWeightList$x)
+  # Estimates of the size parameter can be unstable (because variance = mu + mu^2
+  # / size so size --> Inf as var --> mu) so we cut out those that are above the
+  # 99th quantile. These are variants that are essentially poisson in their
+  # counts so we're slightly biasing our result to show HIGHER variance.
 }
+
+varInfo %<>% 
+  mutate(gammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20))
 
 varInfo[varInfo$kNN[[1]],]$negBinParams %>% 
   purrr::reduce(bind_rows) %>% 
