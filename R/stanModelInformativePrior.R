@@ -189,7 +189,8 @@ fitMuGamma = function(weights, muEstimates){
   
   optimRes = optim(initialGuess, 
                    fnToMin, 
-                   lower = c(0,0), control = list())
+                   lower = c(1e-12), 
+                   control = list(ndeps = c(1e-4, 1e-5)))
   
   # The parscale control option is needed to scale the optimization proposals.
   # If the rate suggestions are too huge then fnToMin throws out Inf which
@@ -204,7 +205,7 @@ fitMuGamma = function(weights, muEstimates){
 }
 
 fitSizeGamma = function(weights, sizeEstimates){
-  # differs only where the optimization is initialized
+  # different ndeps, no lower bound so the optimizer works
   fnToMin = function(paramVec){-sum(weights * dgamma(sizeEstimates, 
                                                      shape = paramVec[1], 
                                                      rate = paramVec[2], 
@@ -216,7 +217,7 @@ fitSizeGamma = function(weights, sizeEstimates){
   
   optimRes = optim(initialGuess, 
                    fnToMin, 
-                   lower = c(0,0)) 
+                   control = list(ndeps = c(1e-4, 1e-4))) 
   
   if (optimRes$convergence != 0) {
     stop(paste0('problems with gamma fitting, convergence code: ', optimRes$convergence))
@@ -226,21 +227,42 @@ fitSizeGamma = function(weights, sizeEstimates){
     set_names(c('shape', 'rate'))
 }
 
-plusOrHomebrew = function(weights, muEstimates, initialMuGuess){
+plusOrHomebrewMu = function(weights, muEstimates, initialMuGuess){
+  # Try to fit the gamma with fitdistrplus. If that doesn't work, try the
+  # homebrew optimizer that calculates its own type-block initial guess for the
+  # individual type-block
   
   res = try(fitdistMod(muEstimates, 
                        'gamma', 
                        weights = weights, 
                        start = initialMuGuess,
-                       control = list(parscale = c(1,.01))))
+                       control = list(ndeps = c(1e-4, 1e-5)),
+                       lower = 1e-12)$estimate,
+            silent = TRUE)
   
-  if(class(res) == 'try-error'){
+  if (class(res) == 'try-error') {
     fitMuGamma(weights, muEstimates)
   } else{
     res
   }
+}
+
+plusOrHomebrewSize = function(weights, sizeEstimates, initialSizeGuess){
+  #same as above just different ndeps
   
+  res = try(fitdistMod(sizeEstimates, 
+                       'gamma', 
+                       weights = weights, 
+                       start = initialSizeGuess,
+                       control = list(ndeps = c(1e-4, 1e-4)),
+                       lower = 1e-12)$estimate,
+            silent = TRUE)
   
+  if (class(res) == 'try-error') {
+    fitSizeGamma(weights, sizeEstimates)
+  } else{
+    res
+  }
 }
 
 fitGammaHyperPriors = function(constructNum){ 
@@ -265,16 +287,12 @@ fitGammaHyperPriors = function(constructNum){
   
   dataForEstimates %>% 
     group_by(type, block) %>% 
-    summarise(muGammaHyperPriors = list(fitdistMod(muEst, 
-                                                   'gamma', 
-                                                   weights = weight, 
-                                                   start = initialMuGuess,
-                                                   control = list(ndeps = c(1e-4, 1e-5)))),
-              sizeGammaHyperPriors = list(fitdistMod(sizeEst[sizeEst < 1e4], 
-                                                     'gamma', 
-                                                     weights = weight[sizeEst < 1e4], 
-                                                     start = initialSizeGuess,
-                                                     control = list(ndeps = c(1e-4, 1e-4))))) %>% 
+    summarise(muGammaHyperPriors = list(plusOrHomebrewMu(weight, 
+                                                         muEst, 
+                                                         initialMuGuess)),
+              sizeGammaHyperPriors = list(plusOrHomebrewSize(weight[sizeEst < 1e4],
+                                                             sizeEst[sizeEst < 1e4], 
+                                                             initialSizeGuess))) %>% 
     ungroup
   
   # Estimates of the size parameter can be unstable (because variance = mu + mu^2
@@ -286,8 +304,10 @@ fitGammaHyperPriors = function(constructNum){
 varInfo %<>% 
   mutate(gammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20))
 
-system.time(varInfo <- varInfo %>%
-              mutate(gammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20)))
+# system.time(varInfo <- varInfo %>%
+#               mutate(gammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20)))
+
+save(varInfo, file = '~/bayesianMPRA/outputs/varInfoWithNegBinAndGammaParams.RData')
 
 varInfo[varInfo$kNN[[1]],]$negBinParams %>% 
   purrr::reduce(bind_rows) %>% 
