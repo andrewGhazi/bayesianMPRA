@@ -89,7 +89,7 @@ generateDistMat = function(predictors) {
 
 distMat = generateDistMat(preds)
 
-findWeights = function(i, distMat, minDistKernel, minNumContributing = 30, increaseFold = 1.5){
+findWeights = function(i, distMat, minDistKernel, minNumContributing = 30, increaseFold = 1.333){
   # for the ith variant, produce a vector of weightings such that at minimum minNumContributing
   # variants meaningfully contribute (i.e. cumsum(sortedWeights)[30] <= .99)
   # arguments after the 2nd are heuristics that may need tuning
@@ -189,8 +189,7 @@ fitMuGamma = function(weights, muEstimates){
   
   optimRes = optim(initialGuess, 
                    fnToMin, 
-                   lower = c(0,0)) #, 
-  #control = list(parscale = c(1, .01))
+                   lower = c(0,0), control = list())
   
   # The parscale control option is needed to scale the optimization proposals.
   # If the rate suggestions are too huge then fnToMin throws out Inf which
@@ -227,6 +226,23 @@ fitSizeGamma = function(weights, sizeEstimates){
     set_names(c('shape', 'rate'))
 }
 
+plusOrHomebrew = function(weights, muEstimates, initialMuGuess){
+  
+  res = try(fitdistMod(muEstimates, 
+                       'gamma', 
+                       weights = weights, 
+                       start = initialMuGuess,
+                       control = list(parscale = c(1,.01))))
+  
+  if(class(res) == 'try-error'){
+    fitMuGamma(weights, muEstimates)
+  } else{
+    res
+  }
+  
+  
+}
+
 fitGammaHyperPriors = function(constructNum){ 
   constr = varInfo[constructNum,]
   others = varInfo[-constructNum,]
@@ -253,11 +269,12 @@ fitGammaHyperPriors = function(constructNum){
                                                    'gamma', 
                                                    weights = weight, 
                                                    start = initialMuGuess,
-                                                   control = list(parscale = c(1,.01)))),
-              sizeGammaHyperPriors = list(fitdistMod(sizeEst[sizeEst < quantile(sizeEst, .99)], 
+                                                   control = list(ndeps = c(1e-4, 1e-5)))),
+              sizeGammaHyperPriors = list(fitdistMod(sizeEst[sizeEst < 1e4], 
                                                      'gamma', 
-                                                     weights = weight[sizeEst < quantile(sizeEst, .99)], 
-                                                     start = initialSizeGuess))) %>% 
+                                                     weights = weight[sizeEst < 1e4], 
+                                                     start = initialSizeGuess,
+                                                     control = list(ndeps = c(1e-4, 1e-4))))) %>% 
     ungroup
   
   # Estimates of the size parameter can be unstable (because variance = mu + mu^2
@@ -269,8 +286,8 @@ fitGammaHyperPriors = function(constructNum){
 varInfo %<>% 
   mutate(gammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20))
 
-# system.time(varInfo <- varInfo %>% 
-#               mutate(gammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20)))
+system.time(varInfo <- varInfo %>%
+              mutate(gammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20)))
 
 varInfo[varInfo$kNN[[1]],]$negBinParams %>% 
   purrr::reduce(bind_rows) %>% 
