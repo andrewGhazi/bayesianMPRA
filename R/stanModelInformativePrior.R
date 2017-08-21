@@ -192,7 +192,7 @@ fitMuGamma = function(weights, muEstimates){
                    lower = c(1e-12), 
                    control = list(ndeps = c(1e-4, 1e-5)))
   
-  # The parscale control option is needed to scale the optimization proposals.
+  # The ndeps control option is needed to scale the optimization proposals.
   # If the rate suggestions are too huge then fnToMin throws out Inf which
   # breaks the optimizer
   
@@ -275,7 +275,8 @@ fitGammaHyperPriors = function(constructNum){
     dplyr::select(construct, negBinParams, weight) %>% 
     unnest %>% 
     na.omit %>% 
-    filter(weight > 1e-4*sort(constr$weights[[1]], decreasing = TRUE)[30]) # This is necessary for speed)
+    filter(weight > 1e-4*sort(constr$weights[[1]], decreasing = TRUE)[30], # This is necessary for speed)
+           grepl('RNA', block)) # Only fit conditional prior on RNA. DNA counts use a marginal prior
   
   muDat = dataForEstimates$muEst
   initialMuGuess = list(shape = mean(muDat)**2 / var(muDat), 
@@ -302,19 +303,54 @@ fitGammaHyperPriors = function(constructNum){
 }
 
 varInfo %<>% 
-  mutate(gammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20))
+  mutate(RNAgammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20))
 
 # system.time(varInfo <- varInfo %>%
 #               mutate(gammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20)))
+# 
+# save(varInfo, file = '~/bayesianMPRA/outputs/varInfoWithNegBinAndGammaParams.RData')
 
-save(varInfo, file = '~/bayesianMPRA/outputs/varInfoWithNegBinAndGammaParams.RData')
+### DNA marginal priors --------
 
-varInfo[varInfo$kNN[[1]],]$negBinParams %>% 
-  purrr::reduce(bind_rows) %>% 
-  group_by(type, block) %>% 
-  summarise(muHyperParams = list(safelyFitGamma(muEst)),
-            sizeHyperParams = list(safelyFitGamma(sizeEst))) %>% 
-  ungroup
+fitDNAmargPrior = function(...){
+  varInfo %>% 
+    dplyr::select(construct, negBinParams) %>% 
+    unnest %>% 
+    filter(grepl('DNA', block)) %>%
+    gather(negBinParam, negBinParamVal, -(construct:block)) %>% 
+    group_by(block, negBinParam) %>% 
+    summarise(margGammaEstimate = list(fitdist(negBinParamVal, 'gamma'))) %>% 
+    ungroup %>% 
+    mutate(alphaEst = map_dbl(margGammaEstimate, ~.x$estimate[1]),
+           betaEst = map_dbl(margGammaEstimate, ~.x$estimate[2]))
+}
+
+margDNAPrior = fitDNAmargPrior()
+
+varInfo %>% 
+  dplyr::select(construct, negBinParams) %>% 
+  unnest %>% 
+  filter(grepl('DNA', block)) %>% 
+  mutate(priorDens = map2_dbl(block, muEst, ~dgamma(.y, 
+                                                    shape = ifelse(grepl('DNA1', .x), margDNAPrior$alphaEst[1], margDNAPrior$alphaEst[3]), 
+                                                    rate = ifelse(grepl('DNA1', .x), margDNAPrior$betaEst[1], margDNAPrior$betaEst[3])))) %>% 
+  ggplot(aes(muEst)) +
+  geom_histogram(aes(y = ..density..), bins = 40) + 
+  facet_grid(~ block, scales = 'free') +
+  scale_x_log10(breaks = c(1, 10, 100, 1000, 10000)) + 
+  geom_line(aes(muEst, priorDens)) + 
+  ggtitle('Distribution of mean parameters of negative binomial\nestimates for DNA barcode counts by block')
+
+varInfo %>% 
+  dplyr::select(construct, negBinParams) %>% 
+  unnest %>% 
+  filter(grepl('DNA', block)) %>% 
+  ggplot(aes(sizeEst)) +
+  geom_histogram(bins = 40) + 
+  facet_grid(~ block, scales = 'free') +
+  scale_x_log10(breaks = c(10**(-2:2))) +
+  ggtitle('Distribution of size parameters of negative binomial\nestimates for DNA barcode counts by block')
+
 
 ## TODO: keep adapting over ulirschNegBinPrior ------
 ## 1. fit neg binomials
