@@ -1,4 +1,6 @@
-mledist = function (data, distr, start = NULL, fix.arg = NULL, optim.method = "default", 
+checkparam = getFromNamespace('checkparam', 'fitdistrplus')
+
+mledistMod = function (data, distr, start = NULL, fix.arg = NULL, optim.method = "default", 
           lower = -Inf, upper = Inf, custom.optim = NULL, weights = NULL, 
           silent = TRUE, gradient = NULL, ...) 
 {
@@ -24,7 +26,7 @@ mledist = function (data, distr, start = NULL, fix.arg = NULL, optim.method = "d
     #   stop("weights should be a vector of (strictly) positive integers")
     if (length(weights) != NROW(data)) 
       stop("weights should be a vector with a length equal to the observation number")
-    warning("weights are not taken into account in the default initial values")
+    # warning("weights are not taken into account in the default initial values")
   }
   if (is.vector(data)) {
     cens <- FALSE
@@ -288,4 +290,152 @@ mledist = function (data, distr, start = NULL, fix.arg = NULL, optim.method = "d
                 weights = weights, counts = opt$counts, optim.message = opt$message)
   }
   return(res)
+}
+
+fitdistMod = function (data, distr, method = c("mle", "mme", "qme", "mge"), 
+                    start = NULL, fix.arg = NULL, discrete, keepdata = TRUE, 
+                    keepdata.nb = 100, ...) 
+{
+  if (!is.character(distr)) 
+    distname <- substring(as.character(match.call()$distr), 
+                          2)
+  else distname <- distr
+  ddistname <- paste("d", distname, sep = "")
+  if (!exists(ddistname, mode = "function")) 
+    stop(paste("The ", ddistname, " function must be defined"))
+  pdistname <- paste("p", distname, sep = "")
+  if (!exists(pdistname, mode = "function")) 
+    stop(paste("The ", pdistname, " function must be defined"))
+  if (missing(discrete)) {
+    if (is.element(distname, c("binom", "nbinom", "geom", 
+                               "hyper", "pois"))) 
+      discrete <- TRUE
+    else discrete <- FALSE
+  }
+  if (!is.logical(discrete)) 
+    stop("wrong argument 'discrete'.")
+  if (!is.logical(keepdata) || !is.numeric(keepdata.nb) || 
+      keepdata.nb < 2) 
+    stop("wrong arguments 'keepdata' and 'keepdata.nb'")
+  if (any(method == "mom")) 
+    warning("the name \"mom\" for matching moments is NO MORE used and is replaced by \"mme\"")
+  method <- match.arg(method, c("mle", "mme", "qme", "mge"))
+  if (!(is.vector(data) & is.numeric(data) & length(data) > 
+        1)) 
+    stop("data must be a numeric vector of length greater than 1")
+  my3dots <- list(...)
+  if (length(my3dots) == 0) 
+    my3dots <- NULL
+  n <- length(data)
+  if (method == "mme") {
+    if (!is.element(distname, c("norm", "lnorm", "pois", 
+                                "exp", "gamma", "nbinom", "geom", "beta", "unif", 
+                                "logis"))) 
+      if (!"order" %in% names(my3dots)) 
+        stop("moment matching estimation needs an 'order' argument")
+    mme <- mmedist(data, distname, start = start, fix.arg = fix.arg, 
+                   ...)
+    sd <- NULL
+    correl <- varcovar <- NULL
+    estimate <- mme$estimate
+    loglik <- mme$loglik
+    npar <- length(estimate)
+    aic <- -2 * loglik + 2 * npar
+    bic <- -2 * loglik + log(n) * npar
+    convergence <- mme$convergence
+    fix.arg <- mme$fix.arg
+    fix.arg.fun <- NULL
+    weights <- mme$weights
+  }
+  else if (method == "mle") {
+    mle <- mledistMod(data, distname, start, fix.arg, ...)
+    if (mle$convergence > 0) 
+      stop("the function mle failed to estimate the parameters, \n                with the error code ", 
+           mle$convergence, "\n")
+    estimate <- mle$estimate
+    if (!is.null(mle$hessian)) {
+      if (all(!is.na(mle$hessian)) && qr(mle$hessian)$rank == 
+          NCOL(mle$hessian)) {
+        varcovar <- solve(mle$hessian)
+        sd <- sqrt(diag(varcovar))
+        correl <- cov2cor(varcovar)
+      }
+      else {
+        varcovar <- NA
+        sd <- NA
+        correl <- NA
+      }
+    }
+    else {
+      varcovar <- NA
+      sd <- NA
+      correl <- NA
+    }
+    loglik <- mle$loglik
+    npar <- length(estimate)
+    aic <- -2 * loglik + 2 * npar
+    bic <- -2 * loglik + log(n) * npar
+    convergence <- mle$convergence
+    fix.arg <- mle$fix.arg
+    fix.arg.fun <- mle$fix.arg.fun
+    weights <- mle$weights
+  }
+  else if (method == "qme") {
+    if (!"probs" %in% names(my3dots)) 
+      stop("quantile matching estimation needs an 'probs' argument")
+    qme <- qmedist(data, distname, start, fix.arg, ...)
+    estimate <- qme$estimate
+    sd <- NULL
+    loglik <- qme$loglik
+    npar <- length(estimate)
+    aic <- -2 * loglik + 2 * npar
+    bic <- -2 * loglik + log(n) * npar
+    correl <- varcovar <- NULL
+    convergence <- qme$convergence
+    fix.arg <- qme$fix.arg
+    fix.arg.fun <- qme$fix.arg.fun
+    weights <- qme$weights
+  }
+  else if (method == "mge") {
+    if (!"gof" %in% names(my3dots)) 
+      warning("maximum GOF estimation has a default 'gof' argument set to 'CvM'")
+    mge <- mgedist(data, distname, start, fix.arg, ...)
+    estimate <- mge$estimate
+    sd <- NULL
+    loglik <- mge$loglik
+    npar <- length(estimate)
+    aic <- -2 * loglik + 2 * npar
+    bic <- -2 * loglik + log(n) * npar
+    correl <- varcovar <- NULL
+    convergence <- mge$convergence
+    fix.arg <- mge$fix.arg
+    fix.arg.fun <- mge$fix.arg.fun
+    weights <- NULL
+  }
+  else {
+    stop("match.arg() does not work correctly")
+  }
+  if (!is.null(fix.arg)) 
+    fix.arg <- as.list(fix.arg)
+  if (keepdata) {
+    reslist <- list(estimate = estimate, method = method, 
+                    sd = sd, cor = correl, vcov = varcovar, loglik = loglik, 
+                    aic = aic, bic = bic, n = n, data = data, distname = distname, 
+                    fix.arg = fix.arg, fix.arg.fun = fix.arg.fun, dots = my3dots, 
+                    convergence = convergence, discrete = discrete, weights = weights)
+  }
+  else {
+    n2keep <- min(keepdata.nb, n) - 2
+    imin <- which.min(data)
+    imax <- which.max(data)
+    subdata <- data[sample((1:n)[-c(imin, imax)], size = n2keep, 
+                           replace = FALSE)]
+    subdata <- c(subdata, data[c(imin, imax)])
+    reslist <- list(estimate = estimate, method = method, 
+                    sd = sd, cor = correl, vcov = varcovar, loglik = loglik, 
+                    aic = aic, bic = bic, n = n, data = subdata, distname = distname, 
+                    fix.arg = fix.arg, fix.arg.fun = fix.arg.fun, dots = my3dots, 
+                    convergence = convergence, discrete = discrete, weights = weights)
+  }
+  return(structure(reslist, class = "fitdist"))
 }
