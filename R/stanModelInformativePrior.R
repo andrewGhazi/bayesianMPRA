@@ -16,12 +16,12 @@ data{
   int<lower=0> refRNAmat[nRefBarcode, nRNAblocks] ;
   int<lower=0> mutDNAmat[nMutBarcode, nDNAblocks] ;
   int<lower=0> mutRNAmat[nMutBarcode, nRNAblocks] ;
-  real<lower=0> muRefRNAHyperParams[2] ; // gamma hyper-parameters on negative binomial parameters
-  real<lower=0> phiRefRNAHyperParams[2] ;
-  real<lower=0> muMutRNAHyperParams[2] ;
-  real<lower=0> phiMutRNAHyperParams[2] ;
-  real<lower=0> muDNAHyperParams[2] ;
-  real<lower=0> phiDNAHyperParams[2] ;
+  real<lower=0> muRefRNAHyperParams[2, nRNAblocks] ; // gamma hyper-parameters on negative binomial parameters
+  real<lower=0> phiRefRNAHyperParams[2, nRNAblocks] ;
+  real<lower=0> muMutRNAHyperParams[2, nRNAblocks] ;
+  real<lower=0> phiMutRNAHyperParams[2, nRNAblocks] ;
+  real<lower=0> muDNAHyperParams[2, nDNAblocks] ;
+  real<lower=0> phiDNAHyperParams[2, nDNAblocks] ;
 }
 parameters{
   real<lower=0> muRefDNA[nDNAblocks] ; //mean parameters for each block in each allele for each nucleic acid
@@ -34,26 +34,28 @@ parameters{
   real<lower=0> phiMutRNA[nRNAblocks] ;
 }
 model{
-  
-  // negative binomial parameters come from gamma hyper-priors
-  muRefDNA ~ gamma(muDNAHyperParams[1], muDNAHyperParams[2]) ; 
-  muMutDNA ~ gamma(muDNAHyperParams[1], muDNAHyperParams[2]) ;
-  phiRefDNA ~ gamma(phiDNAHyperParams[1], phiDNAHyperParams[2]) ;
-  phiMutDNA ~ gamma(phiDNAHyperParams[1], phiDNAHyperParams[2]) ;
-  
-  muRefRNA ~ gamma(muRefRNAHyperParams[1], muRefRNAHyperParams[2]) ;
-  muMutRNA ~ gamma(muMutRNAHyperParams[1], muMutRNAHyperParams[2]) ;
-  
-  phiRefRNA ~ gamma(phiRefRNAHyperParams[1], phiRefRNAHyperParams[2]) ;
-  phiMutRNA ~ gamma(phiMutRNAHyperParams[1], phiMutRNAHyperParams[2]) ;
 
-  // count data comes from the specified negative binomial
-  for (i in 1:nDNAblocks){ 
+  
+  for (i in 1:nDNAblocks){
+
+    // negative binomial parameters come from gamma hyper-priors
+    muRefDNA[i] ~ gamma(muDNAHyperParams[1, i], muDNAHyperParams[2, i]) ; 
+    phiRefDNA[i] ~ gamma(phiDNAHyperParams[1, i], phiDNAHyperParams[2, i]) ;
+    
+    // count data comes from the specified negative binomial
     refDNAmat[,i] ~ neg_binomial_2(muRefDNA[i], phiRefDNA[i]) ;
     mutDNAmat[,i] ~ neg_binomial_2(muMutDNA[i], phiMutDNA[i]) ;
   }
 
   for (i in 1:nRNAblocks){
+    // negative binomial parameters come from gamma hyper-priors
+    muRefRNA[i] ~ gamma(muRefRNAHyperParams[1, i], muRefRNAHyperParams[2, i]) ;
+    muMutRNA[i] ~ gamma(muMutRNAHyperParams[1, i], muMutRNAHyperParams[2, i]) ;
+
+    phiRefRNA[i] ~ gamma(phiRefRNAHyperParams[1, i], phiRefRNAHyperParams[2, i]) ;
+    phiMutRNA[i] ~ gamma(phiMutRNAHyperParams[1, i], phiMutRNAHyperParams[2, i]) ;
+
+    // count data comes from the specified negative binomial
     refRNAmat[,i] ~ neg_binomial_2(muRefRNA[i], phiRefRNA[i]) ;
     mutRNAmat[,i] ~ neg_binomial_2(muMutRNA[i], phiMutRNA[i]) ;
   }
@@ -64,7 +66,7 @@ model = stan_model(model_code = modelString)
 
 set.seed(1280)
 
-### By variant prior estimation ----
+### Get similarity based on prior information ----
 load('data/varInfoWithHistoneMarkAnnotations.RData') 
 names(varInfo)[12] = 'transcriptionalShift'
 
@@ -175,7 +177,7 @@ varInfo %<>%
 
 paramDF = varInfo %>% dplyr::select(construct, negBinParams)
 
-### Fit weighted gamma hyperprior on negBin parameters to each variant ------- TODO fix this code
+### Fit weighted gamma hyperprior on negBin parameters to each variant ------- 
 fitMuGamma = function(weights, muEstimates){
   fnToMin = function(paramVec){-sum(weights * dgamma(muEstimates, 
                                                      shape = paramVec[1], 
@@ -327,6 +329,7 @@ fitDNAmargPrior = function(...){
 
 margDNAPrior = fitDNAmargPrior()
 
+#visualize
 varInfo %>% 
   dplyr::select(construct, negBinParams) %>% 
   unnest %>% 
@@ -351,11 +354,120 @@ varInfo %>%
   scale_x_log10(breaks = c(10**(-2:2))) +
   ggtitle('Distribution of size parameters of negative binomial\nestimates for DNA barcode counts by block')
 
+### Now to run the sampler ---------
+
+run_sampler = function(snp_data){
+  # snp_data - a data_frame with one row containing a column called countData and another called RNAgammaParams
+  
+  # Given a matrix of counts (rows = barcodes, columns = samples) and a
+  # data_frame of by-allele-RNA-sample gamma hyperpriors, run the above Stan
+  # model
+  
+  count_data = snp_data$countData[[1]]
+  RNA_gamma_params = snp_data$RNAgammaParams[[1]]
+  
+  # Prepare count data matrices
+  ref_DNA_mat = count_data %>% 
+    filter(type == 'Ref') %>% 
+    dplyr::select(-type) %>% 
+    dplyr::select(contains('DNA')) %>% 
+    as.matrix
+  
+  ref_RNA_mat = count_data %>% 
+    filter(type == 'Ref') %>% 
+    dplyr::select(-type) %>% 
+    dplyr::select(contains('RNA')) %>% 
+    as.matrix
+  
+  mut_DNA_mat  = count_data %>% 
+    filter(type == 'Mut') %>% 
+    dplyr::select(-type) %>% 
+    dplyr::select(contains('DNA')) %>% 
+    as.matrix
+  
+  mut_RNA_mat = count_data %>% 
+    filter(type == 'Mut') %>% 
+    dplyr::select(-type) %>% 
+    dplyr::select(contains('RNA')) %>% 
+    as.matrix
+  
+  # Prepare Gamma hyper-prior matrices
+  mu_ref_RNA_hyper_params = RNA_gamma_params %>% 
+    filter(type == 'Ref') %>% 
+    pull(muGammaHyperPriors) %>% 
+    reduce(bind_rows) %>% 
+    as.matrix() %>%
+    t
+  
+  mu_mut_RNA_hyper_params = RNA_gamma_params %>% 
+    filter(type == 'Mut') %>% 
+    pull(muGammaHyperPriors) %>% 
+    reduce(bind_rows) %>% 
+    as.matrix() %>%
+    t
+  
+  phi_ref_RNA_hyper_params = RNA_gamma_params %>% 
+    filter(type == 'Ref') %>% 
+    pull(sizeGammaHyperPriors) %>% 
+    reduce(bind_rows) %>% 
+    as.matrix() %>%
+    t
+  
+  phi_mut_RNA_hyper_params = RNA_gamma_params %>% 
+    filter(type == 'Mut') %>% 
+    pull(sizeGammaHyperPriors) %>% 
+    reduce(bind_rows) %>% 
+    as.matrix() %>%
+    t
+  
+  mu_DNA_hyper_params = margDNAPrior %>% 
+    filter(grepl('mu', negBinParam)) %>% 
+    dplyr::select(alphaEst, betaEst) %>% # OMG three pipes lining up
+    as.matrix %>% 
+    t
+  
+  phi_DNA_hyper_params = margDNAPrior %>% 
+    filter(grepl('size', negBinParam)) %>% 
+    dplyr::select(alphaEst, betaEst) %>% 
+    as.matrix %>% 
+    t
+  
+  # create input data list
+  data_list = list(nRefBarcode = nrow(ref_DNA_mat),
+                   nMutBarcode = nrow(mut_DNA_mat), 
+                   nDNAblocks = ncol(ref_DNA_mat), 
+                   nRNAblocks = ncol(ref_RNA_mat),
+                   refDNAmat = ref_DNA_mat,
+                   refRNAmat = ref_RNA_mat,
+                   mutDNAmat = mut_DNA_mat,
+                   mutRNAmat = mut_RNA_mat,
+                   muRefRNAHyperParams = mu_ref_RNA_hyper_params,
+                   phiRefRNAHyperParams = phi_ref_RNA_hyper_params,
+                   muMutRNAHyperParams = mu_mut_RNA_hyper_params,
+                   phiMutRNAHyperParams = phi_mut_RNA_hyper_params,
+                   muDNAHyperParams = mu_DNA_hyper_params,
+                   phiDNAHyperParams = phi_DNA_hyper_params)
+  
+  sampling(object = model,
+           data = data_list,
+           chains = 3,
+           iter = 3334,
+           warmup = 500,
+           thin = 1,
+           verbose = FALSE) #friggin stan still verbose af
+}
+
+varInfo %>% 
+  group_by(construct) %>% 
+  nest %>% 
+  mutate(sampler_result = mclapply(data, run_sampler, mc.cores = 20))
+
+
 
 ## TODO: keep adapting over ulirschNegBinPrior ------
-## 1. fit neg binomials
-## 2. fit WEIGHTED gamma hyperprior to RNA counts
-## 3. Fit marginal gamma hyperprior on DNA counts
-## 4. adapt model code
+## 1. fit neg binomials DONE
+## 2. fit WEIGHTED gamma hyperprior to RNA counts DONE
+## 3. Fit marginal gamma hyperprior on DNA counts DONE
+## 4. adapt model code DONE
 ## 5. run sampling
 ## 6. money
