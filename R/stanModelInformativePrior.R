@@ -310,7 +310,7 @@ varInfo %<>%
 # system.time(varInfo <- varInfo %>%
 #               mutate(gammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20)))
 # 
-# save(varInfo, file = '~/bayesianMPRA/outputs/varInfoWithNegBinAndGammaParams.RData')
+save(varInfo, file = '~/bayesianMPRA/outputs/varInfoWithNegBinAndGammaParams.RData')
 
 ### DNA marginal priors --------
 
@@ -457,10 +457,16 @@ run_sampler = function(snp_data){
            verbose = FALSE) #friggin stan still verbose af
 }
 
-varInfo %>% 
-  group_by(construct) %>% 
-  nest %>% 
-  mutate(sampler_result = mclapply(data, run_sampler, mc.cores = 20))
+save(varInfo,
+     margDNAPrior,
+     run_sampler,
+     model,
+     file = '~/bayesianMPRA/outputs/objects_for_isolated_run.RData')
+
+# varInfo %>% 
+#   group_by(construct) %>% 
+#   nest %>% 
+#   mutate(sampler_result = mclapply(data, run_sampler, mc.cores = 20))
 
 
 
