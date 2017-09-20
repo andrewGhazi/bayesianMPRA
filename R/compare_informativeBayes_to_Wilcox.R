@@ -22,6 +22,17 @@ ulirsch_activities = UMPRA %>%
   gather(sample, depthAdjCount, K562_CTRL_minP_RNA1:K562_CTRL_minP_RNA6) %>% 
   mutate(activity = log(depthAdjCount / dnaMean))
 
+ulirsch_activities %>%
+  filter(is.finite(activity)) %>%
+  group_by(construct) %>% 
+  summarise(mean_ref_activity = mean(activity[type == 'Ref']), 
+            mean_mut_activity = mean(activity[type == 'Mut'])) %>%
+  gather(activity_type, activity, contains('mean')) %>% 
+  ggplot(aes(activity)) + 
+  geom_rug() +
+  geom_histogram() +
+  facet_grid(~activity_type)
+
 ulirsch_control_wilcox = ulirsch_activities %>% 
   group_by(construct) %>% 
   nest %>% 
