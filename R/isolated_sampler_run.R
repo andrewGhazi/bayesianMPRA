@@ -37,7 +37,7 @@ quant_norm_parameter = function(param_name, sample_df){
 
 get_snp_TS_samples = function(sampler_res){
   sample_df = sampler_res %>% 
-    extract() %>%
+    rstan::extract() %>%
     map(as.tibble) %>% 
     map2(names(.), 
          ., 
@@ -54,16 +54,19 @@ get_snp_TS_samples = function(sampler_res){
 }
 
 varInfo %<>% 
-  mutate(transcriptional_shift_samples = mclapply(sampler_result, get_snp_TS_samples, mc.cores = 20),
+  mutate(transcriptional_shift_samples = map(sampler_result, get_snp_TS_samples),
          transcriptional_shift_HDI = map(transcriptional_shift_samples, ~pull(.x, transcriptional_shift) %>% mcmc %>% HPDinterval(prob = .99)),
          functional = map_lgl(transcriptional_shift_HDI, ~!between(0, .x[1], .x[2])),
          mean_transcriptional_shift = map_dbl(transcriptional_shift_samples, ~pull(.x, transcriptional_shift) %>% mean)) 
 
-varInfo %>% 
+save(varInfo, file = '~/bayesianMPRA/outputs/varInfo_with_samples.RData')
+
+bayesian_functional = varInfo %>% 
   filter(functional) %>% 
   arrange(desc(abs(mean_transcriptional_shift))) %>% 
-  filter(abs(mean_transcriptional_shift) < 10) %>% 
-  save(file = '~/bayesianMPRA/outputs/functional_varInfo.RData')
+  filter(abs(mean_transcriptional_shift) < 10)
+
+save(bayesian_functional, file = '~/bayesianMPRA/outputs/functional_varInfo.RData')
 
 
 
