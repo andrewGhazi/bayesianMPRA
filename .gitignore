@@ -6,3 +6,4 @@ data/*
 outputs/*
 externalSoftware/*
 RMarkdown/*
+analysis/tmp/*
