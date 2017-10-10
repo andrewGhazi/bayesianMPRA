@@ -1,3 +1,7 @@
+# let's lay out the skeleton for the package mostly adapted over from
+# stanModelInformativePrior and changed to be generalized functions where
+# applicable
+
 library(tidyverse)
 library(magrittr)
 library(rstan)
@@ -76,7 +80,47 @@ generateDistMat = function(predictors) {
   
 }
 
+findWeights = function(i, distMat, minDistKernel, minNumContributing = 30, increaseFold = 1.333){
+  # for the ith variant, produce a vector of weightings such that at minimum minNumContributing
+  # variants meaningfully contribute (i.e. cumsum(sortedWeights)[30] <= .99)
+  # arguments after the 2nd are heuristics that may need tuning
+  
+  # Initialize the kernel at some small value based on the typical distances in the input distance matrix (precomputed for speed)
+  distKernel = minDistKernel
+  
+  rawWeights = dnorm(distMat[i,-i], sd = distKernel)
+  scaledWeights = rawWeights / sum(rawWeights)
+  sorted = sort(scaledWeights, decreasing = TRUE)
+  
+  notEnoughContributing = cumsum(sorted[1:minNumContributing])[minNumContributing] > .99
+  #allZero = all(rawWeights$x == 0)
+  
+  # if there aren't more than minNumContributing variants providing meaningful contribution to the prior
+  if (is.na(notEnoughContributing) || notEnoughContributing) { 
+    
+    # iteratively increase the kernel bandwith until they do
+    while (is.na(notEnoughContributing) || notEnoughContributing) {
+      distKernel = distKernel * increaseFold
+      rawWeights = dnorm(distMat[i,-i], sd = distKernel)
+      scaledWeights = rawWeights / sum(rawWeights)
+      sorted = sort(scaledWeights, decreasing = TRUE)
+      
+      notEnoughContributing = cumsum(sorted[1:minNumContributing])[minNumContributing] > .99
+    }
+  }
+  
+  scaledWeights
+}
+
 bayesian_mpra_analyze = function(mpra_data, predictors) {
   
   distMat = generateDistMat(predictors)
+  
+  # Initialize the kernel at some small value based on the typical distances in the input distance matrix
+  minDistKernel = distMat[upper.tri(distMat)] %>% 
+    unlist() %>% 
+    sort() %>% #sort all observed distances
+    .[. > 0] %>% 
+    quantile(.001) # pick the .1th quantile. The only variants that will use this kernel will be in very densely populated regions of predictor space
+  
 }
