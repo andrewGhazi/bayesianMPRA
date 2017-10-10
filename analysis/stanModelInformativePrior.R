@@ -75,7 +75,7 @@ varInfo %<>% dplyr::select(construct, chr:alt, gkmerDelta:transcriptionalShift)
 # varInfo %>% select(contains('Broad'), contains('Sydh'), eigen:DeepSeaDnaase)
 preds = varInfo %>% 
   dplyr::select(DeepSeaDnaase, gkmerDelta) %>%
-  map_df(~scale(.x)[,1]) #effing scale only outputs matrices
+  map_dfr(~scale(.x)[,1]) #effing scale only outputs matrices
 
 generateDistMat = function(predictors) {
   #predictors is a n x d data frame of predictors
