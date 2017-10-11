@@ -3,7 +3,7 @@ library(magrittr)
 library(rstan)
 library(parallel)
 library(fitdistrplus)
-source('R/mledistModified.R')
+source('analysis/mledistModified.R')
 
 ### Stan model -----
 modelString = "
@@ -41,6 +41,8 @@ model{
     // negative binomial parameters come from gamma hyper-priors
     muRefDNA[i] ~ gamma(muDNAHyperParams[1, i], muDNAHyperParams[2, i]) ; 
     phiRefDNA[i] ~ gamma(phiDNAHyperParams[1, i], phiDNAHyperParams[2, i]) ;
+    muMutDNA[i] ~ gamma(muDNAHyperParams[1, i], muDNAHyperParams[2, i]) ; 
+    phiMutDNA[i] ~ gamma(phiDNAHyperParams[1, i], phiDNAHyperParams[2, i]) ;
     
     // count data comes from the specified negative binomial
     refDNAmat[,i] ~ neg_binomial_2(muRefDNA[i], phiRefDNA[i]) ;
@@ -170,10 +172,10 @@ estTransfectionParameters = function(countDat){
 }
 
 
-ncores = 20
+ncores = 6
 
 varInfo %<>% 
-  mutate(negBinParams = mclapply(countData, estTransfectionParameters, mc.cores = ncores))
+  mutate(negBinParams = mclapply(countData, estTransfectionParameters, mc.cores = 6))
 
 paramDF = varInfo %>% dplyr::select(construct, negBinParams)
 
@@ -305,7 +307,7 @@ fitGammaHyperPriors = function(constructNum){
 }
 
 varInfo %<>% 
-  mutate(RNAgammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20))
+  mutate(RNAgammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 6))
 
 # system.time(varInfo <- varInfo %>%
 #               mutate(gammaParams = mclapply(1:n(), fitGammaHyperPriors, mc.cores = 20)))
