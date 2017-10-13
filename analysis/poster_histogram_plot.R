@@ -3,6 +3,8 @@ library(magrittr)
 library(rstan)
 library(parallel)
 library(fitdistrplus)
+library(preprocessCore)
+library(ghzutils)
 
 load('~/bayesianMPRA/outputs/objects_for_isolated_run.RData')
 
@@ -169,12 +171,51 @@ model{
 "
 
 prior_model = stan_model(model_code = modelString_prior)
-prior_samples = 
+prior_samples = sampling(object = prior_model,
+                         data = data_list,
+                         chains = 3,
+                         iter = n_iter,
+                         warmup = 500,
+                         thin = 1,
+                         verbose = FALSE)
 
 
 more_samples = varInfo %>% filter(construct == '9 136155000 2/3') %>% run_sampler(n_iter = 10000)
 #### Create the plot --------
 
+quant_norm_parameter = function(param_name, sample_df){
+  sample_df %>%
+    dplyr::select(contains(param_name)) %>%
+    as.matrix %>%
+    normalize.quantiles %>%
+    rowMeans %>% # Still not sure that taking the mean across samples is the right thing to do
+    as.tibble %>%
+    set_names(param_name)
+}
+
+get_snp_TS_samples = function(sampler_res){
+  sample_df = sampler_res %>%
+    rstan::extract() %>%
+    map(as.tibble) %>%
+    map2(names(.),
+         .,
+         ~set_names(.y, paste0(.x, '_', names(.y)))) %>%
+    bind_cols
+  
+  c('muMutRNA',
+    'muMutDNA',
+    'muRefRNA',
+    'muRefDNA') %>%
+    map(quant_norm_parameter, sample_df = sample_df) %>%
+    bind_cols %>%
+    transmute(transcriptional_shift = log(muMutRNA / muMutDNA) - log(muRefRNA / muRefDNA))
+}
+
+load_construct_get_TS = function(construct){
+  load(paste0('~/bayesianMPRA/outputs/ulirsch_sampler_results/', gsub('/', '-', gsub(' ', '_', construct)), '.RData'))
+  
+  get_snp_TS_samples(sampling_result)
+}
 
 p = get_snp_TS_samples(more_samples) %>% 
   ggplot(aes(transcriptional_shift)) +
