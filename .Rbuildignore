@@ -1,0 +1,6 @@
+^analysis/*$
+^external_software/*$
+^outputs/*$
+^RMarkdown/*$
+^.*\.Rproj$
+^\.Rproj\.user$

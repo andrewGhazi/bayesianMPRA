@@ -1,0 +1,13 @@
+Package: bayesianMPRA
+Title: A Bayesian framework for modelling MPRA data with an informative, annotation based empirical prior
+Version: 0.0.0.9000
+Authors@R: person("Andrew", "Ghazi", email = "andrew.ghazi@example.com", role = c("aut", "cre"))
+Description: This package provides a Bayesian modelling framework for MPRA data. Rather than using t-tests on derived quantities (i.e. log(mRNA/DNA) activities) or fitting linear models, this package employs a negative binomial model on the raw MPRA barcode counts. Implemented in Stan, it provides a posterior distribution on the transcriptional shift of variants. It bases the prior distribution on variant model parameters on empirical estimates based on genomic-annotation-based similarity.
+Depends: R (>= 3.3.3)
+License: GPL (>= 2)
+Encoding: UTF-8
+LazyData: true
+Imports:
+  dplyr,
+  rstan
+RoxygenNote: 6.0.1
