@@ -84,7 +84,7 @@
 generate_dist_mat = function(predictors, log_distance = TRUE) {
   #predictors is a n x d data frame of predictors
   
-  if (log_dist) {
+  if (log_distance) {
     predictors %>% 
       dplyr::select(snp_id) %>% 
       as.data.frame() %>% 
