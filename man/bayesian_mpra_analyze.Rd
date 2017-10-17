@@ -4,12 +4,17 @@
 \alias{bayesian_mpra_analyze}
 \title{Bayesian analysis of MPRA data}
 \usage{
-bayesian_mpra_analyze(mpra_data, predictors, marginal_prior = FALSE)
+bayesian_mpra_analyze(mpra_data, predictors, out_dir,
+  save_nonfunctional = FALSE, num_cores = 1)
 }
 \arguments{
 \item{mpra_data}{a data frame of mpra data}
 
 \item{predictors}{a matching data frame of annotations}
+
+\item{out_dir}{a directory that you want the outputs written to}
+
+\item{save_nonfunctional}{logical indicating whether to save the sampler results of non-functional variants.}
 
 \item{marginal_prior}{logical indicating whether or not to disregard the functional predictors and use a marginal prior estimated from the entire assay}
 }
@@ -17,7 +22,7 @@ bayesian_mpra_analyze(mpra_data, predictors, marginal_prior = FALSE)
 Given MPRA data and a set of predictors, perform a Bayesian analysis of variants using an empirical prior
 }
 \details{
-\code{mpra_data} must meet the following format conditions
+\code{mpra_data} must meet the following format conditions:
   \enumerate { 
     \item one row per barcode 
     \item one column of variant IDs (e.g. rs IDs) 
@@ -25,4 +30,6 @@ Given MPRA data and a set of predictors, perform a Bayesian analysis of variants
     \item one additional column for every sequencing sample 
     \item column names of plasmid library samples must contain "DNA" (e.g. "DNA_1", "DNA_2", ...) 
     \item column names of samples from transcription products must contain "RNA" (e.g. "RNA_1", "RNA_2", ...) }
+    
+    \code{save_nonfunctional} defaults to \code{FALSE} as doing so can consume a large amount of storage space
 }
