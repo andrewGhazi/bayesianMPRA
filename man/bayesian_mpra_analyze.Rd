@@ -4,7 +4,7 @@
 \alias{bayesian_mpra_analyze}
 \title{Bayesian analysis of MPRA data}
 \usage{
-bayesian_mpra_analyze(mpra_data, predictors, out_dir,
+bayesian_mpra_analyze(mpra_data, predictors, use_marg_prior = FALSE, out_dir,
   save_nonfunctional = FALSE, num_cores = 1)
 }
 \arguments{
@@ -22,14 +22,14 @@ bayesian_mpra_analyze(mpra_data, predictors, out_dir,
 Given MPRA data and a set of predictors, perform a Bayesian analysis of variants using an empirical prior
 }
 \details{
-\code{mpra_data} must meet the following format conditions:
-  \enumerate { 
+\code{mpra_data} must meet the following format conditions: \enumerate{ 
     \item one row per barcode 
     \item one column of variant IDs (e.g. rs IDs) 
     \item one column of alleles. These must be character strings of either "ref" or "mut" 
     \item one additional column for every sequencing sample 
     \item column names of plasmid library samples must contain "DNA" (e.g. "DNA_1", "DNA_2", ...) 
-    \item column names of samples from transcription products must contain "RNA" (e.g. "RNA_1", "RNA_2", ...) }
+    \item column names of samples from transcription products must contain "RNA" (e.g. "RNA_1", "RNA_2", ...) 
+    }
     
     \code{save_nonfunctional} defaults to \code{FALSE} as doing so can consume a large amount of storage space
 }

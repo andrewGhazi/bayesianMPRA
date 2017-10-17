@@ -462,14 +462,14 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
 #' @param out_dir a directory that you want the outputs written to
 #' @param save_nonfunctional logical indicating whether to save the sampler results of non-functional variants. 
 #' @param marginal_prior logical indicating whether or not to disregard the functional predictors and use a marginal prior estimated from the entire assay
-#' @details \code{mpra_data} must meet the following format conditions:
-#'   \enumerate { 
+#' @details \code{mpra_data} must meet the following format conditions: \enumerate{ 
 #'     \item one row per barcode 
 #'     \item one column of variant IDs (e.g. rs IDs) 
 #'     \item one column of alleles. These must be character strings of either "ref" or "mut" 
-#'     \item one additional column for every sequencing sample 
+#'     \item one additional column for every transfection/physical sample
 #'     \item column names of plasmid library samples must contain "DNA" (e.g. "DNA_1", "DNA_2", ...) 
-#'     \item column names of samples from transcription products must contain "RNA" (e.g. "RNA_1", "RNA_2", ...) }
+#'     \item column names of samples from transcription products must contain "RNA" (e.g. "RNA_1", "RNA_2", ...) 
+#'     }
 #'     
 #'     \code{save_nonfunctional} defaults to \code{FALSE} as doing so can consume a large amount of storage space
 #' @importFrom magrittr %>%
@@ -482,19 +482,21 @@ bayesian_mpra_analyze = function(mpra_data, predictors, use_marg_prior = FALSE, 
   
   if (!use_marg_prior) {
     # Initialize the kernel at some small value based on the typical distances in the input distance matrix
+    ordered_preds = mpra_data %>% 
+      dplyr::select(snp_id) %>% 
+      unique %>% 
+      left_join(predictors, by = 'snp_id') %>% 
+      dplyr::select(-snp_id)
+    
+    print('Computing distance matrix...')
+    dist_mat = generate_dist_mat(ordered_preds)
+    
     min_dist_kernel = dist_mat[upper.tri(dist_mat)] %>% 
       unlist() %>% 
       sort() %>% #sort all observed distances
       .[. > 0] %>% 
       quantile(.001) # pick the .1th quantile. The only variants that will use this kernel will be in very densely populated regions of predictor space
     
-    ordered_preds = mpra_data %>% 
-      dplyr::select(snp_id) %>% 
-      unique %>% 
-      left_join(predictors, by = 'snp_id')
-    
-    print('Computing distance matrix...')
-    dist_mat = generate_dist_mat(ordered_preds)
     
     print('Organizing count data...')
     mpra_data %<>% 
@@ -515,6 +517,7 @@ bayesian_mpra_analyze = function(mpra_data, predictors, use_marg_prior = FALSE, 
       mutate(rna_gamma_params = mclapply(1:n(), fit_gamma_priors, mc.cores = num_cores))
   } else {
     # assign marginal priors to the RNA samples
+    stop('Marginal DNA priors are not yet implemented.')
   }
   
   print('Fitting marginal prior to DNA samples...')
