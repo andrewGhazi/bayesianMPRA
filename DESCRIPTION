@@ -10,7 +10,8 @@ LazyData: true
 Imports:
   dplyr,
   rstan,
-  coda
+  coda,
+  fitdistrplus
 Suggests:
   preprocessCore
 RoxygenNote: 6.0.1

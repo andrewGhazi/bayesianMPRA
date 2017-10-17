@@ -212,6 +212,9 @@ est_sample_params = function(count_dat){
 }
 
 ### Fit weighted gamma hyperprior on negBin parameters to each variant ------- 
+
+#' @importFrom magrittr %>%
+#' @importFrom purrr set_names
 fit_mu_gamma = function(weights, mu_estimates){
   fn_to_min = function(param_vec){-sum(weights * dgamma(mu_estimates, 
                                                         shape = param_vec[1], 
@@ -240,6 +243,9 @@ fit_mu_gamma = function(weights, mu_estimates){
     set_names(c('shape', 'rate'))
 }
 
+
+#' @importFrom magrittr %>%
+#' @importFrom purrr set_names
 fit_size_gamma = function(weights, size_estimates){
   # different ndeps, no lower bound so the optimizer works
   fn_to_min = function(param_vec){-sum(weights * dgamma(size_estimates, 
@@ -262,6 +268,7 @@ fit_size_gamma = function(weights, size_estimates){
   optim_res$par %>% 
     set_names(c('shape', 'rate'))
 }
+
 
 plus_or_homebrew_mu = function(weights, mu_estimates, initial_mu_guess){
   # Try to fit the gamma with fitdistrplus. If that doesn't work, try the
