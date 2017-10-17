@@ -476,42 +476,46 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
 #' @importFrom dplyr select
 #' @importFrom purrr map
 #' @export
-bayesian_mpra_analyze = function(mpra_data, predictors, out_dir, save_nonfunctional = FALSE, num_cores = 1) {
+bayesian_mpra_analyze = function(mpra_data, predictors, use_marg_prior = FALSE, out_dir, save_nonfunctional = FALSE, num_cores = 1) {
   # mpra_data is a data frame with columns like so:
   # one column called snp_id
   
-  # Initialize the kernel at some small value based on the typical distances in the input distance matrix
-  min_dist_kernel = dist_mat[upper.tri(dist_mat)] %>% 
-    unlist() %>% 
-    sort() %>% #sort all observed distances
-    .[. > 0] %>% 
-    quantile(.001) # pick the .1th quantile. The only variants that will use this kernel will be in very densely populated regions of predictor space
-  
-  ordered_preds = mpra_data %>% 
-    dplyr::select(snp_id) %>% 
-    unique %>% 
-    left_join(predictors, by = 'snp_id')
-  
-  print('Computing distance matrix...')
-  dist_mat = generate_dist_mat(ordered_preds)
-  
-  print('Organizing count data...')
-  mpra_data %<>% 
-    dplyr::select(matches('snp_id|CTRL|DNA|type')) %>% 
-    group_by(snp_id) %>% 
-    nest(.key = count_data) 
-  
-  print('Evaluating predictor based weights...')
-  mpra_data %<>% 
-    mutate(weights = mclapply(1:nrow(.), findWeights, dist_mat = dist_mat, min_dist_kernel = min_dist_kernel, mc.cores = num_cores))
-  
-  print('Computing neg_bin parameters by sample and allele')
-  mpra_data %<>%
-    mutate(nb_params = mclapply(count_data, est_sample_params, mc.cores = num_cores))
-  
-  print('Fitting annotation-based gamma prior...')
-  mpra_data %<>% 
-    mutate(rna_gamma_params = mclapply(1:n(), fit_gamma_priors, mc.cores = num_cores))
+  if (!use_marg_prior) {
+    # Initialize the kernel at some small value based on the typical distances in the input distance matrix
+    min_dist_kernel = dist_mat[upper.tri(dist_mat)] %>% 
+      unlist() %>% 
+      sort() %>% #sort all observed distances
+      .[. > 0] %>% 
+      quantile(.001) # pick the .1th quantile. The only variants that will use this kernel will be in very densely populated regions of predictor space
+    
+    ordered_preds = mpra_data %>% 
+      dplyr::select(snp_id) %>% 
+      unique %>% 
+      left_join(predictors, by = 'snp_id')
+    
+    print('Computing distance matrix...')
+    dist_mat = generate_dist_mat(ordered_preds)
+    
+    print('Organizing count data...')
+    mpra_data %<>% 
+      dplyr::select(matches('snp_id|CTRL|DNA|type')) %>% 
+      group_by(snp_id) %>% 
+      nest(.key = count_data) 
+    
+    print('Evaluating predictor based weights...')
+    mpra_data %<>% 
+      mutate(weights = mclapply(1:nrow(.), findWeights, dist_mat = dist_mat, min_dist_kernel = min_dist_kernel, mc.cores = num_cores))
+    
+    print('Computing neg_bin parameters by sample and allele')
+    mpra_data %<>%
+      mutate(nb_params = mclapply(count_data, est_sample_params, mc.cores = num_cores))
+    
+    print('Fitting annotation-based gamma prior...')
+    mpra_data %<>% 
+      mutate(rna_gamma_params = mclapply(1:n(), fit_gamma_priors, mc.cores = num_cores))
+  } else {
+    # assign marginal priors to the RNA samples
+  }
   
   print('Fitting marginal prior to DNA samples...')
   marg_dna_prior = fit_DNA_prior(mpra_data)
