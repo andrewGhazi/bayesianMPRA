@@ -411,7 +411,9 @@ get_snp_TS_samples = function(sampler_res){
 #' @importFrom dplyr bind_rows
 #' @importFrom purrr reduce
 #' @importFrom rstan sampling
-run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
+#' @importFrom coda mcmc
+#' @importFrom coda HPDinterval
+run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir, num_chain = 3, num_iter = 3334, num_warmup = 500){
   # snp_data - a data_frame with one row containing a column called count_data and another called rna_gamma_params and a column called snp_id
   
   # Given a matrix of counts (rows = barcodes, columns = samples) and a
@@ -505,9 +507,9 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
   
   sampler_res = sampling(object = model,
                          data = data_list,
-                         chains = 3,
-                         iter = 3334,
-                         warmup = 500,
+                         chains = num_chain,
+                         iter = num_iter,
+                         warmup = num_warmup,
                          thin = 1,
                          verbose = FALSE) #friggin stan still verbose af
   
@@ -518,13 +520,8 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
     
     functional_variant = !between(0, ts_hdi[1], ts_hdi[2])
     
-    snp_data %>% 
-      mutate(sampler_result = list(sampler_res),
-             ts_samples )
-    mutate(transcriptional_shift_samples = map(snp_id, load_construct_get_TS),
-           transcriptional_shift_HDI = map(transcriptional_shift_samples, ~pull(.x, transcriptional_shift) %>% mcmc %>% HPDinterval(prob = .99)),
-           functional = map_lgl(transcriptional_shift_HDI, ~!between(0, .x[1], .x[2])),
-           mean_transcriptional_shift = map_dbl(transcriptional_shift_samples, ~pull(.x, transcriptional_shift) %>% mean))
+  } else {
+    stop('Normalization methods other than quantile normalization are not yet implemented yet.')
   }
   
   if (functional_variant) {
@@ -543,7 +540,7 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
 #' @description Given MPRA data and a set of predictors, perform a Bayesian analysis of variants using an empirical prior
 #' @param mpra_data a data frame of mpra data
 #' @param predictors a matching data frame of annotations
-#' @param out_dir a directory that you want the outputs written to
+#' @param out_dir a directory that you want the outputs written to. Make sure it ends with a forward slash.
 #' @param save_nonfunctional logical indicating whether to save the sampler results of non-functional variants. 
 #' @param marginal_prior logical indicating whether or not to disregard the functional predictors and use a marginal prior estimated from the entire assay
 #' @param normalization_method character vector indicating which method to use for aggregating information across samples. Must be either 'quantile_normalization' or 'depth_normalization'
