@@ -11,7 +11,8 @@ Imports:
   dplyr,
   rstan,
   coda,
-  fitdistrplus
+  fitdistrplus,
+  parallel
 Suggests:
   preprocessCore
 RoxygenNote: 6.0.1
