@@ -7,17 +7,10 @@
 # library(rstan)
 # library(parallel)
 # library(fitdistrplus)
-<<<<<<< HEAD
 # source('analysis/mledistModified.R')
 # 
 # ### Stan model -----
 # modelString = "
-=======
-# source('R/mledistModified.R')
-
-# # ### Stan model -----
-# model_string = "
->>>>>>> c445e3ce550ce405973ea772b429ef160897b998
 # data{
 #   int<lower=0> nRefBarcode ; // number of barcodes in ref allele
 #   int<lower=0> nMutBarcode ;
@@ -50,15 +43,8 @@
 #   for (i in 1:nDNAblocks){
 # 
 #     // negative binomial parameters come from gamma hyper-priors
-<<<<<<< HEAD
 #     muRefDNA[i] ~ gamma(muDNAHyperParams[1, i], muDNAHyperParams[2, i]) ; 
 #     phiRefDNA[i] ~ gamma(phiDNAHyperParams[1, i], phiDNAHyperParams[2, i]) ;
-=======
-#     muRefDNA[i] ~ gamma(muDNAHyperParams[1, i], muDNAHyperParams[2, i]) ;
-#     phiRefDNA[i] ~ gamma(phiDNAHyperParams[1, i], phiDNAHyperParams[2, i]) ;
-#     muMutDNA[i] ~ gamma(muDNAHyperParams[1, i], muDNAHyperParams[2, i]) ; 
-#     phiMutDNA[i] ~ gamma(phiDNAHyperParams[1, i], phiDNAHyperParams[2, i]) ;
->>>>>>> c445e3ce550ce405973ea772b429ef160897b998
 # 
 #     // count data comes from the specified negative binomial
 #     refDNAmat[,i] ~ neg_binomial_2(muRefDNA[i], phiRefDNA[i]) ;
@@ -69,11 +55,7 @@
 #     // negative binomial parameters come from gamma hyper-priors
 #     muRefRNA[i] ~ gamma(muRefRNAHyperParams[1, i], muRefRNAHyperParams[2, i]) ;
 #     muMutRNA[i] ~ gamma(muMutRNAHyperParams[1, i], muMutRNAHyperParams[2, i]) ;
-<<<<<<< HEAD
 #     
-=======
-# 
->>>>>>> c445e3ce550ce405973ea772b429ef160897b998
 #     phiRefRNA[i] ~ gamma(phiRefRNAHyperParams[1, i], phiRefRNAHyperParams[2, i]) ;
 #     phiMutRNA[i] ~ gamma(phiMutRNAHyperParams[1, i], phiMutRNAHyperParams[2, i]) ;
 # 
@@ -84,7 +66,6 @@
 # }
 # "
 # 
-<<<<<<< HEAD
 # model = stan_model(model_code = modelString)
 
 #' Generate a distance matrix from a matrix of predictors
@@ -231,9 +212,9 @@ est_sample_params = function(count_dat){
 ### Fit weighted gamma hyperprior on negBin parameters to each variant ------- 
 fit_mu_gamma = function(weights, mu_estimates){
   fn_to_min = function(param_vec){-sum(weights * dgamma(mu_estimates, 
-                                                     shape = param_vec[1], 
-                                                     rate = param_vec[2], 
-                                                     log = TRUE))}
+                                                        shape = param_vec[1], 
+                                                        rate = param_vec[2], 
+                                                        log = TRUE))}
   
   mean_est = mean(mu_estimates)
   var_est = var(mu_estimates)
@@ -241,9 +222,9 @@ fit_mu_gamma = function(weights, mu_estimates){
   initial_guess = c(mean_est**2 / var_est, mean_est/var_est)
   
   optim_res = optim(initial_guess, 
-                   fn_to_min, 
-                   lower = c(1e-12), 
-                   control = list(ndeps = c(1e-4, 1e-5)))
+                    fn_to_min, 
+                    lower = c(1e-12), 
+                    control = list(ndeps = c(1e-4, 1e-5)))
   
   # The ndeps control option is needed to scale the optimization proposals.
   # If the rate suggestions are too huge then fn_to_min throws out Inf which
@@ -260,17 +241,17 @@ fit_mu_gamma = function(weights, mu_estimates){
 fit_size_gamma = function(weights, size_estimates){
   # different ndeps, no lower bound so the optimizer works
   fn_to_min = function(param_vec){-sum(weights * dgamma(size_estimates, 
-                                                     shape = param_vec[1], 
-                                                     rate = param_vec[2], 
-                                                     log = TRUE))}
+                                                        shape = param_vec[1], 
+                                                        rate = param_vec[2], 
+                                                        log = TRUE))}
   mean_est = mean(size_estimates)
   var_est = var(size_estimates)
   
   initial_guess = c(mean_est**2 / var_est, mean_est/var_est)
   
   optim_res = optim(initial_guess, 
-                   fn_to_min, 
-                   control = list(ndeps = c(1e-4, 1e-4))) 
+                    fn_to_min, 
+                    control = list(ndeps = c(1e-4, 1e-4))) 
   
   if (optim_res$convergence != 0) {
     stop(paste0('problems with gamma fitting, convergence code: ', optim_res$convergence))
@@ -310,36 +291,6 @@ plus_or_homebrew_size = function(weights, size_estimates, initial_size_guess){
                        control = list(ndeps = c(1e-4, 1e-4)),
                        lower = 1e-12)$estimate,
             silent = TRUE)
-=======
-# model_object = stan_model(model_code = model_string)
-
-#' Generate a distance matrix from a matrix of predictors
-#'
-#' Given an nxd matrix of variant annotations, produce an nxn distance matrix
-#' describing the inter-variant distances in annotation space
-#' 
-#' @param predictors an n x d data frame of predictors
-#' @param log_distance a logical indicating to use the log1p of the distances (TRUE) or the raw euclidean distances (FALSE)
-#' 
-#' @importFrom magrittr %>%
-generate_dist_mat = function(predictors, log_distance = TRUE) {
-  #predictors is a n x d data frame of predictors
-  
-  if (log_distance) {
-    predictors %>% 
-      as.data.frame() %>% 
-      as.matrix %>% 
-      dist %>% 
-      as.matrix %>% 
-      log1p
-  } else {
-    predictors %>% 
-      as.data.frame() %>% 
-      as.matrix %>% 
-      dist %>% 
-      as.matrix
-  }
->>>>>>> c445e3ce550ce405973ea772b429ef160897b998
   
   if (class(res) == 'try-error') {
     fit_size_gamma(weights, size_estimates)
@@ -348,7 +299,6 @@ generate_dist_mat = function(predictors, log_distance = TRUE) {
   }
 }
 
-<<<<<<< HEAD
 fit_gamma_priors = function(snp_id_num){ 
   snp_in_question = mpra_data[snp_id_num,]
   others = mpra_data[-snp_id_num,]
@@ -364,11 +314,11 @@ fit_gamma_priors = function(snp_id_num){
   
   mu_dat = data_for_estimates$nb_mu_est
   initial_mu_guess = list(shape = mean(mu_dat)**2 / var(mu_dat), 
-                        rate = mean(mu_dat) / var(mu_dat))
+                          rate = mean(mu_dat) / var(mu_dat))
   
   size_dat = data_for_estimates$nb_size_est[data_for_estimates$nb_size_est < quantile(data_for_estimates$nb_size_est, .99)]
   initial_size_guess = list(shape = mean(size_dat)**2 / var(size_dat), 
-                          rate = mean(size_dat) / var(size_dat))
+                            rate = mean(size_dat) / var(size_dat))
   
   data_for_estimates %>% 
     group_by(type, block) %>% 
@@ -493,122 +443,24 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
                    phiDNAHyperParams = phi_DNA_hyper_params)
   
   sampler_res = sampling(object = model,
-           data = data_list,
-           chains = 3,
-           iter = 3334,
-           warmup = 500,
-           thin = 1,
-           verbose = FALSE) #friggin stan still verbose af
+                         data = data_list,
+                         chains = 3,
+                         iter = 3334,
+                         warmup = 500,
+                         thin = 1,
+                         verbose = FALSE) #friggin stan still verbose af
   
   save(sampler_res,
-      file = out_dir)
+       file = out_dir)
 }
 
 
-=======
-#' Produce annotation-based weightings
-#'
-#' For the ith variant, adaptively produce a vector of weightings such that at minimum
-#' min_num_contributing variants meaningfully contribute (i.e.
-#' cumsum(sortedWeights)[30] <= .99) arguments after the 2nd are heuristics that
-#' may need tuning
-#'
-#' @param i the index of the variant in the assay
-#' @param dist_mat annotation-based distance matrix
-#' @param min_dist_kernel the minimum kernel possible to use in the annotation
-#'   space
-#' @param min_num_contributing the minimum number of variants that must
-#'   contribute to the ith variant's prior
-#' @param increase_fold the multiplicative amount by which to increase the
-#'   kernel in the case the current kernel doesn't allow at least
-#'   \code{min_num_contributing} variants to contribute
-#'   
-#' @details The kernel is initialized at some small, pre-computed value then
-#'   iteratively increased until there are "enough" variants contributing. This
-#'   keeps the prior for one variant from being too strongly influenced by
-#'   extremely close neighbors in annotation space.
-#' @return a similarity-based vector of weights of the other n-1 variants
-find_weights = function(i, dist_mat, min_dist_kernel, min_num_contributing = 30, increase_fold = 1.333){
-  # for the ith variant, produce a vector of weightings such that at minimum min_num_contributing
-  # variants meaningfully contribute (i.e. cumsum(sortedWeights)[30] <= .99)
-  # arguments after the 2nd are heuristics that may need tuning
-  
-  # Initialize the kernel at some small value based on the typical distances in the input distance matrix (precomputed for speed)
-  dist_kernel = min_dist_kernel
-  
-  raw_weights = dnorm(dist_mat[i,-i], sd = dist_kernel)
-  scaled_weights = raw_weights / sum(raw_weights)
-  sorted = sort(scaled_weights, decreasing = TRUE)
-  
-  not_enough_contributing = cumsum(sorted[1:min_num_contributing])[min_num_contributing] > .99
-  #allZero = all(raw_weights$x == 0)
-  
-  # if there aren't more than min_num_contributing variants providing meaningful contribution to the prior
-  if (is.na(not_enough_contributing) || not_enough_contributing) { 
-    
-    # iteratively increase the kernel bandwith until they do
-    while (is.na(not_enough_contributing) || not_enough_contributing) {
-      dist_kernel = dist_kernel * increase_fold
-      raw_weights = dnorm(dist_mat[i,-i], sd = dist_kernel)
-      scaled_weights = raw_weights / sum(raw_weights)
-      sorted = sort(scaled_weights, decreasing = TRUE)
-      
-      not_enough_contributing = cumsum(sorted[1:min_num_contributing])[min_num_contributing] > .99
-    }
-  }
-  
-  scaled_weights
-}
-
-#' Safely fit a negative binomial
-#' 
-#' Safely fit a negative binomial
-#' 
-#' @param count_vec a vector of counts
-#' 
-#' @return a 2-element list of a result or error (the other is NULL)
-#' 
-#' @importFrom purrr safely
-#' @importFrom purrr set_names
-#' @importFrom fitdistrplus fitdist
-safely_fit_negbin = function(count_vec){
-  #This doesn't quite suppress all error messages but it does output the right things
-  #an error can still be printed when there's very low variability of low counts (e.g. c(1, rep(0, 14)))
-  safely(fitdist, 
-         otherwise = list(estimate = purrr::set_names(rep(NA, 2), nm = c('mu', 'size'))), 
-         quiet = TRUE)(count_vec, 'nbinom')
-}
-
-#' Estimate Transfection Parameters
-#' 
-#' Estimate Transfection Parameters
-#' 
-#' @param count_dat 
-estTransfectionParameters = function(count_dat){
-  # count_dat - a tibble with a type (ref/mut) column and columns of observed MPRA counts in given transfections
-  # uses fitdistrplus::fitdist because MASS::fitdistr was cracking wise at me
-  # using a modified version of fitdistrplus::mledist because the regular version can't use non-integer weights
-  
-  count_dat %>% 
-    gather(block, count, -type) %>% 
-    group_by(type, block) %>% 
-    summarise(MLEnegBin = list(safelyFitNegBin(count))) %>% 
-    ungroup %>% 
-    mutate(muEst = map_dbl(MLEnegBin, ~.x$result$estimate['mu']),
-           sizeEst = map_dbl(MLEnegBin, ~.x$result$estimate['size'])) %>% 
-    dplyr::select(-MLEnegBin)
-}
-
->>>>>>> c445e3ce550ce405973ea772b429ef160897b998
 #' @title Bayesian analysis of MPRA data
 #' @description Given MPRA data and a set of predictors, perform a Bayesian analysis of variants using an empirical prior
 #' @param mpra_data a data frame of mpra data
 #' @param predictors a matching data frame of annotations
-<<<<<<< HEAD
 #' @param out_dir a directory that you want the outputs written to
 #' @param save_nonfunctional logical indicating whether to save the sampler results of non-functional variants. 
-=======
->>>>>>> c445e3ce550ce405973ea772b429ef160897b998
 #' @param marginal_prior logical indicating whether or not to disregard the functional predictors and use a marginal prior estimated from the entire assay
 #' @details \code{mpra_data} must meet the following format conditions:
 #'   \enumerate { 
@@ -618,7 +470,6 @@ estTransfectionParameters = function(count_dat){
 #'     \item one additional column for every sequencing sample 
 #'     \item column names of plasmid library samples must contain "DNA" (e.g. "DNA_1", "DNA_2", ...) 
 #'     \item column names of samples from transcription products must contain "RNA" (e.g. "RNA_1", "RNA_2", ...) }
-<<<<<<< HEAD
 #'     
 #'     \code{save_nonfunctional} defaults to \code{FALSE} as doing so can consume a large amount of storage space
 #' @importFrom magrittr %>%
@@ -628,14 +479,6 @@ estTransfectionParameters = function(count_dat){
 bayesian_mpra_analyze = function(mpra_data, predictors, out_dir, save_nonfunctional = FALSE, num_cores = 1) {
   # mpra_data is a data frame with columns like so:
   # one column called snp_id
-=======
-#' @importFrom magrittr %>%
-#' @importFrom dplyr select
-#' @importFrom purrr map
-bayesian_mpra_analyze = function(mpra_data, predictors, marginal_prior = FALSE) {
-  
-  dist_mat = generate_dist_mat(predictors)
->>>>>>> c445e3ce550ce405973ea772b429ef160897b998
   
   # Initialize the kernel at some small value based on the typical distances in the input distance matrix
   min_dist_kernel = dist_mat[upper.tri(dist_mat)] %>% 
@@ -644,7 +487,6 @@ bayesian_mpra_analyze = function(mpra_data, predictors, marginal_prior = FALSE) 
     .[. > 0] %>% 
     quantile(.001) # pick the .1th quantile. The only variants that will use this kernel will be in very densely populated regions of predictor space
   
-<<<<<<< HEAD
   ordered_preds = mpra_data %>% 
     dplyr::select(snp_id) %>% 
     unique %>% 
@@ -676,23 +518,12 @@ bayesian_mpra_analyze = function(mpra_data, predictors, marginal_prior = FALSE) 
   
   print('Running MCMC samplers...')
   mpra_data %>% 
-      group_by(snp_id) %>%
-      nest %>%
-      mutate(sampler_result = mclapply(data, run_sampler, 
-                                       marg_dna_prior = marg_dna_prior, 
-                                       save_nonfunctional = save_nonfunctional,
-                                       out_dir = out_dir,
-                                       mc.cores = num_cores))
-=======
-  mpra_data %<>% 
-    group_by(snp_id) %>% 
-    nest(.key = count_data) %>% 
-    mutate(weights = map(1:nrow(.), ~find_weights(.x, dist_mat, min_dist_kernel)))
-    
-    
-    
-  mpra_data %<>% 
-    mutate(weights = map(1:nrow(.), ~findWeights(.x, distMat, minDistKernel)))
->>>>>>> c445e3ce550ce405973ea772b429ef160897b998
+    group_by(snp_id) %>%
+    nest %>%
+    mutate(sampler_result = mclapply(data, run_sampler, 
+                                     marg_dna_prior = marg_dna_prior, 
+                                     save_nonfunctional = save_nonfunctional,
+                                     out_dir = out_dir,
+                                     mc.cores = num_cores))
   
 }
