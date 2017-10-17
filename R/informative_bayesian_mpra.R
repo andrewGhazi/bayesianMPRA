@@ -454,6 +454,28 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
       file = out_dir)
 }
 
+
+#' @title Bayesian analysis of MPRA data
+#' @description Given MPRA data and a set of predictors, perform a Bayesian analysis of variants using an empirical prior
+#' @param mpra_data a data frame of mpra data
+#' @param predictors a matching data frame of annotations
+#' @param out_dir a directory that you want the outputs written to
+#' @param save_nonfunctional logical indicating whether to save the sampler results of non-functional variants. 
+#' @param marginal_prior logical indicating whether or not to disregard the functional predictors and use a marginal prior estimated from the entire assay
+#' @details \code{mpra_data} must meet the following format conditions:
+#'   \enumerate { 
+#'     \item one row per barcode 
+#'     \item one column of variant IDs (e.g. rs IDs) 
+#'     \item one column of alleles. These must be character strings of either "ref" or "mut" 
+#'     \item one additional column for every sequencing sample 
+#'     \item column names of plasmid library samples must contain "DNA" (e.g. "DNA_1", "DNA_2", ...) 
+#'     \item column names of samples from transcription products must contain "RNA" (e.g. "RNA_1", "RNA_2", ...) }
+#'     
+#'     \code{save_nonfunctional} defaults to \code{FALSE} as doing so can consume a large amount of storage space
+#' @importFrom magrittr %>%
+#' @importFrom dplyr select
+#' @importFrom purrr map
+#' @export
 bayesian_mpra_analyze = function(mpra_data, predictors, out_dir, save_nonfunctional = FALSE, num_cores = 1) {
   # mpra_data is a data frame with columns like so:
   # one column called snp_id
