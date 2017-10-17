@@ -570,8 +570,10 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir, n
          ts_hdi,
          mean_transcriptional_shift,
          file = paste0(out_dir, snp_data$snp_id, '.RData'))
-    return()
-  } 
+    return('functional')
+  } else {
+    return('non-functional')
+  }
 }
 
 
