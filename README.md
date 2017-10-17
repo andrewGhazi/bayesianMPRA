@@ -5,6 +5,20 @@ An analytical framework for MPRA data with two main goals:
 
 ## Installation  
 
+### Dependencies  
+
+The package requires the tidyverse packages, `rstan` and suggests the bioconductor package `preprocessCore`.
+
+```
+install.packages(pkgs = c('tidyverse', 'rstan'))
+
+## try http:// if https:// URLs are not supported
+source("https://bioconductor.org/biocLite.R")
+biocLite("preprocessCore")
+```
+
+### Package installation
+
 Install the R package `devtools` if you don't have it already. Once you have that, the package is easily installed with:
 
 ```
