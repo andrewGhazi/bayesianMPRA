@@ -3,6 +3,8 @@ An analytical framework for MPRA data with two main goals:
 1. Provide a fully Bayesian, generative statistical model for the raw count data with an empirical prior
 2. Integrate genomic annotations to provide an informative empirical prior
 
+This package is still evolving and may be broken at times. If you run into a problem please create an issue on this github page.
+
 ## Installation  
 
 ### Dependencies  
