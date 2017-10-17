@@ -86,7 +86,6 @@ generate_dist_mat = function(predictors, log_distance = TRUE) {
   
   if (log_distance) {
     predictors %>% 
-      dplyr::select(snp_id) %>% 
       as.data.frame() %>% 
       as.matrix %>% 
       scale %>% 
@@ -95,7 +94,6 @@ generate_dist_mat = function(predictors, log_distance = TRUE) {
       log1p
   } else {
     predictors %>% 
-      dplyr::select(snp_id) %>% 
       as.data.frame() %>% 
       as.matrix %>% 
       scale %>% 
