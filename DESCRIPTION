@@ -9,7 +9,8 @@ Encoding: UTF-8
 LazyData: true
 Imports:
   dplyr,
-  rstan
+  rstan,
+  coda
 Suggests:
   preprocessCore
 RoxygenNote: 6.0.1
