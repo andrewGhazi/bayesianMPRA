@@ -215,6 +215,13 @@ est_sample_params = function(count_dat){
 
 #' @importFrom magrittr %>%
 #' @importFrom purrr set_names
+#' @importFrom dplyr group_by
+#' @importFrom dplyr mutate
+#' @importFrom dplyr select
+#' @importFrom dplyr summarise
+#' @importFrom dplyr ungroup
+#' @importFrom purrr map_dbl
+#' @importFrom tidyr gather
 fit_mu_gamma = function(weights, mu_estimates){
   fn_to_min = function(param_vec){-sum(weights * dgamma(mu_estimates, 
                                                         shape = param_vec[1], 
@@ -243,9 +250,15 @@ fit_mu_gamma = function(weights, mu_estimates){
     set_names(c('shape', 'rate'))
 }
 
-
-#' @importFrom magrittr %>%
 #' @importFrom purrr set_names
+#' @importFrom dplyr group_by
+#' @importFrom dplyr mutate
+#' @importFrom dplyr select
+#' @importFrom dplyr summarise
+#' @importFrom dplyr ungroup
+#' @importFrom magrittr %>%
+#' @importFrom purrr map_dbl
+#' @importFrom tidyr gather
 fit_size_gamma = function(weights, size_estimates){
   # different ndeps, no lower bound so the optimizer works
   fn_to_min = function(param_vec){-sum(weights * dgamma(size_estimates, 
@@ -308,6 +321,13 @@ plus_or_homebrew_size = function(weights, size_estimates, initial_size_guess){
   }
 }
 
+#' @importFrom magrittr %>%
+#' @importFrom dplyr select
+#' @importFrom tidyr unnest
+#' @importFrom dplyr filter
+#' @importFrom dplyr group_by
+#' @importFrom dplyr summarise
+#' @importFrom dplyr ungroup
 fit_gamma_priors = function(snp_id_num){ 
   snp_in_question = mpra_data[snp_id_num,]
   others = mpra_data[-snp_id_num,]
@@ -345,6 +365,16 @@ fit_gamma_priors = function(snp_id_num){
   # counts so we're slightly biasing our result to show HIGHER variance.
 }
 
+#' @importFrom magrittr %>%
+#' @importFrom dplyr select
+#' @importFrom tidyr unnest
+#' @importFrom dplyr filter
+#' @importFrom tidyr gather
+#' @importFrom dplyr group_by
+#' @importFrom dplyr summarise
+#' @importFrom dplyr ungroup
+#' @importFrom dplyr mutate
+#' @importFrom purrr map_dbl
 fit_DNA_prior = function(mpra_data){
   mpra_data %>% 
     dplyr::select(snp_id, nb_params) %>% 
