@@ -2,8 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
-data/*
+analysis_data/*
 outputs/*
-externalSoftware/*
+external_software/*
 RMarkdown/*
 analysis/tmp/*
