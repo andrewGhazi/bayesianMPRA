@@ -599,6 +599,7 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir, n
 #' @importFrom dplyr mutate
 #' @importFrom dplyr select
 #' @importFrom dplyr left_join
+#' @importFrom parallel mclapply
 #' @importFrom purrr map
 #' @importFrom purrr nest
 #' @export
