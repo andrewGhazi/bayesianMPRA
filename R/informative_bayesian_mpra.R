@@ -195,13 +195,13 @@ safelyFitNegBin = function(count_vec){
 #' @importFrom tidyr gather
 #' 
 est_sample_params = function(count_dat){
-  # count_dat - a tibble with a type (ref/mut) column and columns of observed MPRA counts in given transfections
+  # count_dat - a tibble with a allele (ref/mut) column and columns of observed MPRA counts in given transfections
   # uses fitdistrplus::fitdist because MASS::fitdistr was cracking wise at me
   # using a modified version of fitdistrplus::mledist because the regular version can't use non-integer weights (and it was cracking wise)
   
   count_dat %>% 
-    gather(block, count, -type) %>% 
-    group_by(type, block) %>% 
+    gather(block, count, -allele) %>% 
+    group_by(allele, block) %>% 
     summarise(mle_neg_bin = list(safelyFitNegBin(count))) %>% 
     ungroup %>% 
     mutate(nb_mu_est = map_dbl(mle_neg_bin, ~.x$result$estimate['mu']),
@@ -263,8 +263,8 @@ fit_size_gamma = function(weights, size_estimates){
 
 plus_or_homebrew_mu = function(weights, mu_estimates, initial_mu_guess){
   # Try to fit the gamma with fitdistrplus. If that doesn't work, try the
-  # homebrew optimizer that calculates its own type-block initial guess for the
-  # individual type-block
+  # homebrew optimizer that calculates its own allele-block initial guess for the
+  # individual allele-block
   
   res = try(fitdistMod(mu_estimates, 
                        'gamma', 
@@ -321,7 +321,7 @@ fit_gamma_priors = function(snp_id_num){
                             rate = mean(size_dat) / var(size_dat))
   
   data_for_estimates %>% 
-    group_by(type, block) %>% 
+    group_by(allele, block) %>% 
     summarise(mu_gamma_priors = list(plus_or_homebrew_mu(weight, 
                                                          nb_mu_est, 
                                                          initial_mu_guess)),
@@ -362,53 +362,53 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
   
   # Prepare count data matrices
   ref_DNA_mat = count_data %>% 
-    filter(type == 'Ref') %>% 
-    dplyr::select(-type) %>% 
+    filter(allele == 'ref') %>% 
+    dplyr::select(-allele) %>% 
     dplyr::select(contains('DNA')) %>% 
     as.matrix
   
   ref_RNA_mat = count_data %>% 
-    filter(type == 'Ref') %>% 
-    dplyr::select(-type) %>% 
+    filter(allele == 'ref') %>% 
+    dplyr::select(-allele) %>% 
     dplyr::select(contains('RNA')) %>% 
     as.matrix
   
   mut_DNA_mat  = count_data %>% 
-    filter(type == 'Mut') %>% 
-    dplyr::select(-type) %>% 
+    filter(allele == 'mut') %>% 
+    dplyr::select(-allele) %>% 
     dplyr::select(contains('DNA')) %>% 
     as.matrix
   
   mut_RNA_mat = count_data %>% 
-    filter(type == 'Mut') %>% 
-    dplyr::select(-type) %>% 
+    filter(allele == 'mut') %>% 
+    dplyr::select(-allele) %>% 
     dplyr::select(contains('RNA')) %>% 
     as.matrix
   
   # Prepare Gamma hyper-prior matrices
   mu_ref_RNA_hyper_params = RNA_gamma_params %>% 
-    filter(type == 'Ref') %>% 
+    filter(allele == 'ref') %>% 
     pull(mu_gamma_priors) %>% 
     reduce(bind_rows) %>% 
     as.matrix() %>%
     t
   
   mu_mut_RNA_hyper_params = RNA_gamma_params %>% 
-    filter(type == 'Mut') %>% 
+    filter(allele == 'mut') %>% 
     pull(mu_gamma_priors) %>% 
     reduce(bind_rows) %>% 
     as.matrix() %>%
     t
   
   phi_ref_RNA_hyper_params = RNA_gamma_params %>% 
-    filter(type == 'Ref') %>% 
+    filter(allele == 'ref') %>% 
     pull(size_gamma_priors) %>% 
     reduce(bind_rows) %>% 
     as.matrix() %>%
     t
   
   phi_mut_RNA_hyper_params = RNA_gamma_params %>% 
-    filter(type == 'Mut') %>% 
+    filter(allele == 'mut') %>% 
     pull(size_gamma_priors) %>% 
     reduce(bind_rows) %>% 
     as.matrix() %>%
@@ -465,7 +465,7 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
 #' @details \code{mpra_data} must meet the following format conditions: \enumerate{ 
 #'     \item one row per barcode 
 #'     \item one column of variant IDs (e.g. rs IDs) 
-#'     \item one column of alleles. These must be character strings of either "ref" or "mut" 
+#'     \item one column of alleles called `allele`. These must be character strings of either "ref" or "mut" 
 #'     \item one additional column for every transfection/physical sample
 #'     \item column names of plasmid library samples must contain "DNA" (e.g. "DNA_1", "DNA_2", ...) 
 #'     \item column names of samples from transcription products must contain "RNA" (e.g. "RNA_1", "RNA_2", ...) 
@@ -500,7 +500,7 @@ bayesian_mpra_analyze = function(mpra_data, predictors, use_marg_prior = FALSE, 
     
     print('Organizing count data...')
     mpra_data %<>% 
-      dplyr::select(matches('snp_id|CTRL|DNA|type')) %>% 
+      dplyr::select(matches('snp_id|RNA|DNA|allele')) %>% 
       group_by(snp_id) %>% 
       nest(.key = count_data) 
     

@@ -25,8 +25,8 @@ Given MPRA data and a set of predictors, perform a Bayesian analysis of variants
 \code{mpra_data} must meet the following format conditions: \enumerate{ 
     \item one row per barcode 
     \item one column of variant IDs (e.g. rs IDs) 
-    \item one column of alleles. These must be character strings of either "ref" or "mut" 
-    \item one additional column for every sequencing sample 
+    \item one column of alleles called `allele`. These must be character strings of either "ref" or "mut" 
+    \item one additional column for every transfection/physical sample
     \item column names of plasmid library samples must contain "DNA" (e.g. "DNA_1", "DNA_2", ...) 
     \item column names of samples from transcription products must contain "RNA" (e.g. "RNA_1", "RNA_2", ...) 
     }
