@@ -371,6 +371,13 @@ quant_norm_parameter = function(param_name, sample_df){
 #' 
 #' Compute transcriptional shift samples from sampler output
 #' 
+#' @importFrom magrittr %>%
+#' @importFrom rstan extract
+#' @importFrom purrr map
+#' @importFrom purrr map2
+#' @importFrom purrr set_names
+#' @importFrom dplyr bind_cols
+#' @importFrom dplyr transmute
 get_snp_TS_samples = function(sampler_res){
   sample_df = sampler_res %>%
     rstan::extract() %>%
@@ -403,8 +410,9 @@ get_snp_TS_samples = function(sampler_res){
 #' @importFrom dplyr pull
 #' @importFrom dplyr bind_rows
 #' @importFrom purrr reduce
+#' @importFrom rstan sampling
 run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
-  # snp_data - a data_frame with one row containing a column called count_data and another called rna_gamma_params
+  # snp_data - a data_frame with one row containing a column called count_data and another called rna_gamma_params and a column called snp_id
   
   # Given a matrix of counts (rows = barcodes, columns = samples) and a
   # data_frame of by-allele-RNA-sample gamma hyperpriors, run the above Stan
@@ -504,12 +512,29 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
                          verbose = FALSE) #friggin stan still verbose af
   
   if (norm_method == 'quantile_normalization') {
+    ts_samples = get_snp_TS_samples(sampler_res)
     
+    ts_hdi = ts_samples %>% mcmc %>% HPDinterval(prob = .95)
+    
+    functional_variant = !between(0, ts_hdi[1], ts_hdi[2])
+    
+    snp_data %>% 
+      mutate(sampler_result = list(sampler_res),
+             ts_samples )
+    mutate(transcriptional_shift_samples = map(snp_id, load_construct_get_TS),
+           transcriptional_shift_HDI = map(transcriptional_shift_samples, ~pull(.x, transcriptional_shift) %>% mcmc %>% HPDinterval(prob = .99)),
+           functional = map_lgl(transcriptional_shift_HDI, ~!between(0, .x[1], .x[2])),
+           mean_transcriptional_shift = map_dbl(transcriptional_shift_samples, ~pull(.x, transcriptional_shift) %>% mean))
   }
   
   if (functional_variant) {
+    mean_transcriptional_shift = mean(ts_samples)
+    
     save(sampler_res,
-         file = out_dir)
+         ts_samples,
+         ts_hdi,
+         mean_transcriptional_shift,
+         file = paste0(out_dir, snp_data$snp_id, '.RData'))
   }
 }
 
