@@ -511,6 +511,7 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir, n
                          iter = num_iter,
                          warmup = num_warmup,
                          thin = 1,
+                         cores = 1,
                          verbose = FALSE) #friggin stan still verbose af
   
   if (norm_method == 'quantile_normalization') {
@@ -532,7 +533,7 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir, n
          ts_hdi,
          mean_transcriptional_shift,
          file = paste0(out_dir, snp_data$snp_id, '.RData'))
-  }
+  } 
 }
 
 
@@ -613,7 +614,8 @@ bayesian_mpra_analyze = function(mpra_data, predictors, use_marg_prior = FALSE, 
   mpra_data %>% 
     group_by(snp_id) %>%
     nest %>%
-    mutate(sampler_result = mclapply(data, run_sampler, 
+    mutate(sampler_result = mclapply(data, 
+                                     run_sampler, 
                                      marg_dna_prior = marg_dna_prior, 
                                      save_nonfunctional = save_nonfunctional,
                                      out_dir = out_dir,
