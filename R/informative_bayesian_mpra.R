@@ -345,11 +345,64 @@ fit_DNA_prior = function(mpra_data){
     group_by(block, nb_param) %>% 
     summarise(marg_gamma_estimate = list(fitdist(nb_param_val, 'gamma'))) %>% 
     ungroup %>% 
-    mutate(alphaEst = map_dbl(marg_gamma_estimate, ~.x$estimate[1]),
-           betaEst = map_dbl(marg_gamma_estimate, ~.x$estimate[2]))
+    mutate(alpha_est = map_dbl(marg_gamma_estimate, ~.x$estimate[1]),
+           beta_est = map_dbl(marg_gamma_estimate, ~.x$estimate[2]))
 }
 
+#' quantile normalize parameters
+#' 
+#' @importFrom preprocessCore normalize.quantiles
+#' @importFrom dplyr select
+#' @importFrom dplyr contains
+#' @importFrom magrittr %>%
+#' @importFrom tibble as.tibble
+#' @importFrom purrr set_names
+quant_norm_parameter = function(param_name, sample_df){
+  sample_df %>%
+    dplyr::select(contains(param_name)) %>%
+    as.matrix %>%
+    normalize.quantiles %>%
+    rowMeans %>% # Still not sure that taking the mean across samples is the right thing to do
+    as.tibble %>%
+    set_names(param_name)
+}
 
+#' Compute transcriptional shift samples
+#' 
+#' Compute transcriptional shift samples from sampler output
+#' 
+get_snp_TS_samples = function(sampler_res){
+  sample_df = sampler_res %>%
+    rstan::extract() %>%
+    map(as.tibble) %>%
+    map2(names(.),
+         .,
+         ~set_names(.y, paste0(.x, '_', names(.y)))) %>%
+    bind_cols
+  
+  c('muMutRNA',
+    'muMutDNA',
+    'muRefRNA',
+    'muRefDNA') %>%
+    map(quant_norm_parameter, sample_df = sample_df) %>%
+    bind_cols %>%
+    transmute(transcriptional_shift = log(muMutRNA / muMutDNA) - log(muRefRNA / muRefDNA))
+}
+
+#' Run the Stan Sampler
+#' 
+#' Run the Stan sampler for one variant
+#' 
+#' 
+#' @importFrom magrittr %>%
+#' @importFrom magrittr %<>%
+#' @importFrom dplyr mutate
+#' @importFrom dplyr select
+#' @importFrom dplyr filter
+#' @importFrom dplyr left_join
+#' @importFrom dplyr pull
+#' @importFrom dplyr bind_rows
+#' @importFrom purrr reduce
 run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
   # snp_data - a data_frame with one row containing a column called count_data and another called rna_gamma_params
   
@@ -416,13 +469,13 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
   
   mu_DNA_hyper_params = margDNAPrior %>% 
     filter(grepl('mu', negBinParam)) %>% 
-    dplyr::select(alphaEst, betaEst) %>% # OMG three pipes lining up
+    dplyr::select(alpha_est, beta_est) %>% # OMG three pipes lining up
     as.matrix %>% 
     t
   
   phi_DNA_hyper_params = margDNAPrior %>% 
     filter(grepl('size', negBinParam)) %>% 
-    dplyr::select(alphaEst, betaEst) %>% 
+    dplyr::select(alpha_est, beta_est) %>% 
     as.matrix %>% 
     t
   
@@ -450,8 +503,14 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
                          thin = 1,
                          verbose = FALSE) #friggin stan still verbose af
   
-  save(sampler_res,
-       file = out_dir)
+  if (norm_method == 'quantile_normalization') {
+    
+  }
+  
+  if (functional_variant) {
+    save(sampler_res,
+         file = out_dir)
+  }
 }
 
 
@@ -462,6 +521,8 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
 #' @param out_dir a directory that you want the outputs written to
 #' @param save_nonfunctional logical indicating whether to save the sampler results of non-functional variants. 
 #' @param marginal_prior logical indicating whether or not to disregard the functional predictors and use a marginal prior estimated from the entire assay
+#' @param normalization_method character vector indicating which method to use for aggregating information across samples. Must be either 'quantile_normalization' or 'depth_normalization'
+#' @param num_cores integer indicating how many cores to use for parallelization. Currently the analysis takes ~15s per variant on a first-gen i7 CPU, so setting this as high as possible is recommended as long as you have plenty of RAM.
 #' @details \code{mpra_data} must meet the following format conditions: \enumerate{ 
 #'     \item one row per barcode 
 #'     \item one column of variant IDs (e.g. rs IDs) 
@@ -473,10 +534,14 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir){
 #'     
 #'     \code{save_nonfunctional} defaults to \code{FALSE} as doing so can consume a large amount of storage space
 #' @importFrom magrittr %>%
+#' @importFrom magrittr %<>%
+#' @importFrom dplyr mutate
 #' @importFrom dplyr select
+#' @importFrom dplyr left_join
 #' @importFrom purrr map
+#' @importFrom purrr nest
 #' @export
-bayesian_mpra_analyze = function(mpra_data, predictors, use_marg_prior = FALSE, out_dir, save_nonfunctional = FALSE, num_cores = 1) {
+bayesian_mpra_analyze = function(mpra_data, predictors, use_marg_prior = FALSE, out_dir, save_nonfunctional = FALSE, normalization_method = 'quantile_normalization', num_cores = 1) {
   # mpra_data is a data frame with columns like so:
   # one column called snp_id
   
@@ -496,7 +561,6 @@ bayesian_mpra_analyze = function(mpra_data, predictors, use_marg_prior = FALSE, 
       sort() %>% #sort all observed distances
       .[. > 0] %>% 
       quantile(.001) # pick the .1th quantile. The only variants that will use this kernel will be in very densely populated regions of predictor space
-    
     
     print('Organizing count data...')
     mpra_data %<>% 
@@ -531,6 +595,7 @@ bayesian_mpra_analyze = function(mpra_data, predictors, use_marg_prior = FALSE, 
                                      marg_dna_prior = marg_dna_prior, 
                                      save_nonfunctional = save_nonfunctional,
                                      out_dir = out_dir,
+                                     norm_method = normalization_method,
                                      mc.cores = num_cores))
   
 }
