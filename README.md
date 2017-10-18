@@ -30,6 +30,13 @@ devtools::install_github('andrewGhazi/bayesianMPRA')
 
 Give the function `bayesian_mpra_analyze` a data frame of MPRA counts `mpra_data` and a data frame of functional `predictors` to perform the analysis. The outputs of functional variants are writen to `out_dir`. By default nonfunctional results are not written out because they can consume a lot of storage space. 
 
+#### Example usage
+
+```
+bayesian_mpra_analyze(ulirschCounts, preds, out_dir = '~/bayesianMPRA/analysis_outputs', num_cores = 8)
+
+```
+
 ## Notes
 
 The `analysis` directory in this github repo is for the exploratory scripts used by the author to create this package. They are not installed with the package and should be ignored.
