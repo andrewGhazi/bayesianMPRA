@@ -126,7 +126,7 @@ generate_dist_mat = function(predictors, log_distance = TRUE) {
 #'   extremely close neighbors in annotation space.
 #' @return a similarity-based vector of weights of the other n-1 variants
 #' 
-findWeights = function(i, dist_mat, min_dist_kernel, min_num_contributing = 30, increase_fold = 1.333){
+find_weights = function(i, dist_mat, min_dist_kernel, min_num_contributing = 30, increase_fold = 1.333){
   # for the ith variant, produce a vector of weightings such that at minimum min_num_contributing
   # variants meaningfully contribute (i.e. cumsum(sortedWeights)[30] <= .99)
   # arguments after the 2nd are heuristics that may need tuning
@@ -439,7 +439,6 @@ get_snp_TS_samples = function(sampler_res){
 #' 
 #' 
 #' @importFrom magrittr %>%
-#' @importFrom magrittr %<>%
 #' @importFrom dplyr mutate
 #' @importFrom dplyr select
 #' @importFrom dplyr filter
@@ -640,7 +639,7 @@ bayesian_mpra_analyze = function(mpra_data,
     
     print('Evaluating predictor based weights...')
     mpra_data %<>% 
-      mutate(weights = mclapply(1:nrow(.), findWeights, dist_mat = dist_mat, min_dist_kernel = min_dist_kernel, mc.cores = num_cores))
+      mutate(weights = mclapply(1:nrow(.), find_weights, dist_mat = dist_mat, min_dist_kernel = min_dist_kernel, mc.cores = num_cores))
     
     print('Computing neg_bin parameters by sample and allele')
     mpra_data %<>%
