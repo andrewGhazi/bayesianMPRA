@@ -599,6 +599,7 @@ run_sampler = function(snp_data, marg_dna_prior, save_nonfunctional, out_dir, nu
 #' @importFrom magrittr %>%
 #' @importFrom magrittr %<>%
 #' @importFrom dplyr mutate
+#' @importFrom dplyr filter
 #' @importFrom dplyr select
 #' @importFrom dplyr left_join
 #' @importFrom parallel mclapply
@@ -621,6 +622,12 @@ bayesian_mpra_analyze = function(mpra_data,
       dplyr::select(snp_id) %>% 
       unique %>% 
       left_join(predictors, by = 'snp_id') %>% 
+      na.omit # drop snp_id's without annotations
+    
+    mpra_data %<>% 
+      filter(snp_id %in% ordered_preds$snp_id) # drop snp_id's without annotations
+    
+    ordered_preds %<>%
       dplyr::select(-snp_id)
     
     print('Computing distance matrix...')
