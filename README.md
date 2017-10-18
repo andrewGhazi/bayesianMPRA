@@ -69,6 +69,8 @@ Give the function `bayesian_mpra_analyze` a data frame of MPRA counts `mpra_data
 bayesian_mpra_analyze(mpra_data, predictorss, out_dir = '~/bayesianMPRA/analysis_outputs/', num_cores = 8)
 
 ```
+#### Outputs  
+The output will be a data frame with a row for each `snp_id` containing a nested column of the count data, along with columns giving the MLE negative binomial parameters, the estimated gamma prior, and a binary call of "functional" or "non-functional" based on the snp_id's posterior. For functional variants (according to a 95% HPD interval on transcriptional shift), the MCMC results, transcriptional shift HDI's and mean transcriptional shifts are written to .RData objects in `out_dir` with the appropriate snp_id.
 
 ## Notes
 
