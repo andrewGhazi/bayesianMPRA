@@ -135,7 +135,7 @@ find_weights = function(i, dist_mat, min_dist_kernel, min_num_contributing = 30,
   dist_kernel = min_dist_kernel
   
   raw_weights = dnorm(dist_mat[i,-i], sd = dist_kernel)
-  scaled_weights = raw_weights / sum(raw_weights)
+  scaled_weights = raw_weights / sum(raw_weights, na.rm = TRUE)
   sorted = sort(scaled_weights, decreasing = TRUE)
   
   not_enough_contributing = cumsum(sorted[1:min_num_contributing])[min_num_contributing] > .99
@@ -148,7 +148,7 @@ find_weights = function(i, dist_mat, min_dist_kernel, min_num_contributing = 30,
     while (is.na(not_enough_contributing) || not_enough_contributing) {
       dist_kernel = dist_kernel * increase_fold
       raw_weights = dnorm(dist_mat[i,-i], sd = dist_kernel)
-      scaled_weights = raw_weights / sum(raw_weights)
+      scaled_weights = raw_weights / sum(raw_weights, na.rm = TRUE)
       sorted = sort(scaled_weights, decreasing = TRUE)
       
       not_enough_contributing = cumsum(sorted[1:min_num_contributing])[min_num_contributing] > .99
