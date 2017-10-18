@@ -326,7 +326,7 @@ plus_or_homebrew_size = function(weights, size_estimates, initial_size_guess){
 #' @importFrom dplyr group_by
 #' @importFrom dplyr summarise
 #' @importFrom dplyr ungroup
-fit_gamma_priors = function(snp_id_num){ 
+fit_gamma_priors = function(snp_id_num, mpra_data){ 
   snp_in_question = mpra_data[snp_id_num,]
   others = mpra_data[-snp_id_num,]
   
@@ -449,7 +449,8 @@ get_snp_TS_samples = function(sampler_res){
 #' @importFrom rstan sampling
 #' @importFrom coda mcmc
 #' @importFrom coda HPDinterval
-run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir, num_chain = 3, num_iter = 3334, num_warmup = 500){
+#' @importFrom preprocessCore normalize.quantiles
+run_sampler = function(snp_data, marg_dna_prior, save_nonfunctional, out_dir, num_chain = 3, num_iter = 3334, num_warmup = 500, norm_method = 'quantile_normalization'){
   # snp_data - a data_frame with one row containing a column called count_data and another called rna_gamma_params and a column called snp_id
   
   # Given a matrix of counts (rows = barcodes, columns = samples) and a
@@ -513,14 +514,14 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir, n
     as.matrix() %>%
     t
   
-  mu_DNA_hyper_params = margDNAPrior %>% 
-    filter(grepl('mu', negBinParam)) %>% 
+  mu_DNA_hyper_params = marg_dna_prior %>% 
+    filter(grepl('mu', nb_param)) %>% 
     dplyr::select(alpha_est, beta_est) %>% # OMG three pipes lining up
     as.matrix %>% 
     t
   
-  phi_DNA_hyper_params = margDNAPrior %>% 
-    filter(grepl('size', negBinParam)) %>% 
+  phi_DNA_hyper_params = marg_dna_prior %>% 
+    filter(grepl('size', nb_param)) %>% 
     dplyr::select(alpha_est, beta_est) %>% 
     as.matrix %>% 
     t
@@ -541,7 +542,7 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir, n
                    muDNAHyperParams = mu_DNA_hyper_params,
                    phiDNAHyperParams = phi_DNA_hyper_params)
   
-  sampler_res = sampling(object = model,
+  sampler_res = sampling(object = model_object,
                          data = data_list,
                          chains = num_chain,
                          iter = num_iter,
@@ -647,7 +648,7 @@ bayesian_mpra_analyze = function(mpra_data,
     
     print('Fitting annotation-based gamma prior...')
     mpra_data %<>%
-      mutate(rna_gamma_params = mclapply(1:n(), fit_gamma_priors, mc.cores = num_cores))
+      mutate(rna_gamma_params = mclapply(1:n(), fit_gamma_priors, mpra_data = mpra_data, mc.cores = num_cores))
   } else {
     # assign marginal priors to the RNA samples
     stop('Marginal DNA priors are not yet implemented.')
