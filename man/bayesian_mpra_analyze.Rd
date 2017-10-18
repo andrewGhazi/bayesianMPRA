@@ -5,16 +5,21 @@
 \title{Bayesian analysis of MPRA data}
 \usage{
 bayesian_mpra_analyze(mpra_data, predictors, use_marg_prior = FALSE, out_dir,
-  save_nonfunctional = FALSE, num_cores = 1)
+  save_nonfunctional = FALSE,
+  normalization_method = "quantile_normalization", num_cores = 1)
 }
 \arguments{
 \item{mpra_data}{a data frame of mpra data}
 
 \item{predictors}{a matching data frame of annotations}
 
-\item{out_dir}{a directory that you want the outputs written to}
+\item{out_dir}{a directory that you want the outputs written to. Make sure it ends with a forward slash.}
 
 \item{save_nonfunctional}{logical indicating whether to save the sampler results of non-functional variants.}
+
+\item{normalization_method}{character vector indicating which method to use for aggregating information across samples. Must be either 'quantile_normalization' or 'depth_normalization'}
+
+\item{num_cores}{integer indicating how many cores to use for parallelization. Currently the analysis takes ~15s per variant on a first-gen i7 CPU, so setting this as high as possible is recommended as long as you have plenty of RAM.}
 
 \item{marginal_prior}{logical indicating whether or not to disregard the functional predictors and use a marginal prior estimated from the entire assay}
 }
