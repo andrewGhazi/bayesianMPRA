@@ -33,7 +33,40 @@ Give the function `bayesian_mpra_analyze` a data frame of MPRA counts `mpra_data
 #### Example usage
 
 ```
-bayesian_mpra_analyze(ulirschCounts, preds, out_dir = '~/bayesianMPRA/analysis_outputs', num_cores = 8)
+> mpra_data
+# A tibble: 25,480 x 10
+          snp_id allele K562_minP_DNA1 K562_minP_DNA2 K562_CTRL_minP_RNA1 K562_CTRL_minP_RNA2 K562_CTRL_minP_RNA3
+           <chr>  <chr>          <int>          <int>               <int>               <int>               <int>
+ 1 1 3691528 2/3    ref           1318            885                1243                 593                1109
+ 2 1 3691528 2/3    ref           1133            731                 613                 395                1562
+ 3 1 3691528 2/3    ref            423            276                 192                  83                 257
+ 4 1 3691528 2/3    ref            459            324                 189                 108                 303
+ 5 1 3691528 2/3    ref            396            254                 325                  95                 324
+ 6 1 3691528 2/3    ref            905            555                 443                 255                1390
+ 7 1 3691528 2/3    ref            585            380                 363                 219                 813
+ 8 1 3691528 2/3    ref            525            385                 291                 124                 216
+ 9 1 3691528 2/3    ref            831            546                 479                 302                1472
+10 1 3691528 2/3    ref            169            117                  55                  43                 281
+# ... with 25,470 more rows, and 3 more variables: K562_CTRL_minP_RNA4 <int>, K562_CTRL_minP_RNA5 <int>,
+#   K562_CTRL_minP_RNA6 <int>
+
+> predictors
+# A tibble: 910 x 3
+             snp_id DeepSeaDnaase gkmerDelta
+             <fctr>         <dbl>      <dbl>
+ 1 10 101274365 1/3     -0.131800   0.422375
+ 2 10 101275206 1/2     -0.295580  -0.664241
+ 3 10 101292390 2/3     -0.107650   2.206986
+ 4  10 45949254 2/3      0.090070  -1.792320
+ 5  10 45951081 1/2      0.263740  -0.970451
+ 6  10 45952929 1/2      0.206140   1.433608
+ 7  10 45958275 1/3     -0.406990  -3.264995
+ 8  10 45959385 2/3     -0.094865   2.011715
+ 9  10 45963777 2/3      0.554320   2.323613
+10  10 45965085 1/3     -0.277360  -1.377249
+# ... with 900 more rows
+
+bayesian_mpra_analyze(mpra_data, predictorss, out_dir = '~/bayesianMPRA/analysis_outputs/', num_cores = 8)
 
 ```
 
