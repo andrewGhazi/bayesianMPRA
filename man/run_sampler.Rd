@@ -4,8 +4,9 @@
 \alias{run_sampler}
 \title{Run the Stan Sampler}
 \usage{
-run_sampler(snp_data, marg_dna_priors, save_nonfunctional, out_dir,
-  num_chain = 3, num_iter = 3334, num_warmup = 500)
+run_sampler(snp_data, marg_dna_prior, save_nonfunctional, out_dir,
+  num_chain = 3, num_iter = 3334, num_warmup = 500,
+  norm_method = "quantile_normalization")
 }
 \description{
 Run the Stan sampler for one variant
