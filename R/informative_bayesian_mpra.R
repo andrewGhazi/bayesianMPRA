@@ -596,12 +596,13 @@ run_sampler = function(snp_data, marg_dna_priors, save_nonfunctional, out_dir, n
 #'     
 #'     \code{save_nonfunctional} defaults to \code{FALSE} as doing so can consume a large amount of storage space
 #' @importFrom magrittr %>%
+#' @importFrom magrittr %<>%
 #' @importFrom dplyr mutate
 #' @importFrom dplyr select
 #' @importFrom dplyr left_join
 #' @importFrom parallel mclapply
 #' @importFrom purrr map
-#' @importFrom purrr nest
+#' @importFrom tidyr nest
 #' @export
 bayesian_mpra_analyze = function(mpra_data, 
                                  predictors, 
@@ -631,21 +632,21 @@ bayesian_mpra_analyze = function(mpra_data,
       quantile(.001) # pick the .1th quantile. The only variants that will use this kernel will be in very densely populated regions of predictor space
     
     print('Organizing count data...')
-    mpra_data = mpra_data %>% 
+    mpra_data = mpra_data %<>% 
       dplyr::select(matches('snp_id|RNA|DNA|allele')) %>% 
       group_by(snp_id) %>% 
       nest(.key = count_data) 
     
     print('Evaluating predictor based weights...')
-    mpra_data = mpra_data %>% 
+    mpra_data %<>%
       mutate(weights = mclapply(1:nrow(.), find_weights, dist_mat = dist_mat, min_dist_kernel = min_dist_kernel, mc.cores = num_cores))
     
     print('Computing neg_bin parameters by sample and allele')
-    mpra_data = mpra_data %>% 
+    mpra_data %<>%
       mutate(nb_params = mclapply(count_data, est_sample_params, mc.cores = num_cores))
     
     print('Fitting annotation-based gamma prior...')
-    mpra_data = mpra_data %>% 
+    mpra_data %<>%
       mutate(rna_gamma_params = mclapply(1:n(), fit_gamma_priors, mc.cores = num_cores))
   } else {
     # assign marginal priors to the RNA samples
