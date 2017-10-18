@@ -632,7 +632,7 @@ bayesian_mpra_analyze = function(mpra_data,
       quantile(.001) # pick the .1th quantile. The only variants that will use this kernel will be in very densely populated regions of predictor space
     
     print('Organizing count data...')
-    mpra_data = mpra_data %<>% 
+    mpra_data %<>% 
       dplyr::select(matches('snp_id|RNA|DNA|allele')) %>% 
       group_by(snp_id) %>% 
       nest(.key = count_data) 
