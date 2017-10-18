@@ -1,4 +1,6 @@
 ^analysis/*$
+^analysis_data/*$
+^analysis_outputs/*$
 ^external_software/*$
 ^outputs/*$
 ^RMarkdown/*$
