@@ -571,7 +571,7 @@ run_sampler = function(snp_data, marg_dna_prior, save_nonfunctional, out_dir, nu
          ts_samples,
          ts_hdi,
          mean_transcriptional_shift,
-         file = paste0(out_dir, snp_data$snp_id, '.RData'))
+         file = paste0(out_dir, gsub(' ', '_', gsub('/', '-', snp_data$snp_id)), '.RData'))
     return('functional')
   } else {
     return('non-functional')
