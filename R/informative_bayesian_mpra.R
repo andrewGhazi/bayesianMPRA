@@ -671,12 +671,13 @@ bayesian_mpra_analyze = function(mpra_data,
   mpra_data %>% 
     group_by(snp_id) %>%
     nest %>%
-    mutate(sampler_result = unlist(mclapply(data, 
-                                     run_sampler, 
-                                     marg_dna_prior = marg_dna_prior, 
-                                     save_nonfunctional = save_nonfunctional,
-                                     out_dir = out_dir,
-                                     norm_method = normalization_method,
-                                     mc.cores = num_cores)))
+    mutate(data = map2(snp_id, data, ~mutate(.y, snp_id = .x)),
+           sampler_result = unlist(mclapply(data, 
+                                            run_sampler, 
+                                            marg_dna_prior = marg_dna_prior, 
+                                            save_nonfunctional = save_nonfunctional,
+                                            out_dir = out_dir,
+                                            norm_method = normalization_method,
+                                            mc.cores = num_cores)))
   
 }
