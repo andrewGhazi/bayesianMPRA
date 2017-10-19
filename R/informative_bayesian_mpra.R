@@ -373,6 +373,7 @@ fit_gamma_priors = function(snp_id_num, mpra_data){
 #' @importFrom dplyr ungroup
 #' @importFrom dplyr mutate
 #' @importFrom purrr map_dbl
+#' @importFrom fitdistrplus fitdist
 fit_DNA_prior = function(mpra_data){
   mpra_data %>% 
     dplyr::select(snp_id, nb_params) %>% 
