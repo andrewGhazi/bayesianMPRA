@@ -452,7 +452,7 @@ get_snp_TS_samples = function(sampler_res){
 #' @importFrom coda mcmc
 #' @importFrom coda HPDinterval
 #' @importFrom preprocessCore normalize.quantiles
-run_sampler = function(snp_data, marg_dna_prior, save_nonfunctional, out_dir, num_chain = 3, num_iter = 3334, num_warmup = 500, norm_method = 'quantile_normalization'){
+run_sampler = function(snp_data, marg_dna_prior, save_nonfunctional, out_dir, num_chain = 3, num_iter = 3334, num_warmup = 500, norm_method = 'quantile_normalization', object){
   # snp_data - a data_frame with one row containing a column called count_data and another called rna_gamma_params and a column called snp_id
   
   # Given a matrix of counts (rows = barcodes, columns = samples) and a
@@ -544,7 +544,7 @@ run_sampler = function(snp_data, marg_dna_prior, save_nonfunctional, out_dir, nu
                    muDNAHyperParams = mu_DNA_hyper_params,
                    phiDNAHyperParams = phi_DNA_hyper_params)
   
-  sampler_res = sampling(object = model_object,
+  sampler_res = sampling(object = object,
                          data = data_list,
                          chains = num_chain,
                          iter = num_iter,
@@ -669,6 +669,8 @@ bayesian_mpra_analyze = function(mpra_data,
   marg_dna_prior = fit_DNA_prior(mpra_data)
   
   print('Running MCMC samplers...')
+  
+  model_object2 = stan_model(model_code = model_string)
   mpra_data %>% 
     group_by(snp_id) %>%
     nest %>%
@@ -679,6 +681,7 @@ bayesian_mpra_analyze = function(mpra_data,
                                             save_nonfunctional = save_nonfunctional,
                                             out_dir = out_dir,
                                             norm_method = normalization_method,
+                                            object = model_object2,
                                             mc.cores = num_cores)))
   
 }
