@@ -340,12 +340,12 @@ fit_gamma_priors = function(snp_id_num, mpra_data){
            grepl('RNA', block)) # Only fit conditional prior on RNA. DNA counts use a marginal prior
   
   mu_dat = data_for_estimates$nb_mu_est
-  initial_mu_guess = list(shape = mean(mu_dat)**2 / var(mu_dat), 
-                          rate = mean(mu_dat) / var(mu_dat))
+  initial_mu_guess = list(shape = mean(mu_dat, na.rm = TRUE)**2 / var(mu_dat, na.rm = TRUE), 
+                          rate = mean(mu_dat, na.rm = TRUE) / var(mu_dat, na.rm = TRUE))
   
   size_dat = data_for_estimates$nb_size_est[data_for_estimates$nb_size_est < quantile(data_for_estimates$nb_size_est, .99)]
-  initial_size_guess = list(shape = mean(size_dat)**2 / var(size_dat), 
-                            rate = mean(size_dat) / var(size_dat))
+  initial_size_guess = list(shape = mean(size_dat, na.rm = TRUE)**2 / var(size_dat, na.rm = TRUE), 
+                            rate = mean(size_dat, na.rm = TRUE) / var(size_dat, na.rm = TRUE))
   
   data_for_estimates %>% 
     group_by(allele, block) %>% 
