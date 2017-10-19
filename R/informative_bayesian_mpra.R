@@ -443,6 +443,7 @@ get_snp_TS_samples = function(sampler_res){
 #' @importFrom dplyr select
 #' @importFrom dplyr filter
 #' @importFrom dplyr left_join
+#' @importFrom dplyr contains
 #' @importFrom dplyr pull
 #' @importFrom dplyr bind_rows
 #' @importFrom purrr reduce
@@ -600,6 +601,7 @@ run_sampler = function(snp_data, marg_dna_prior, save_nonfunctional, out_dir, nu
 #' @importFrom magrittr %<>%
 #' @importFrom dplyr mutate
 #' @importFrom dplyr filter
+#' @importFrom dplyr matches
 #' @importFrom dplyr select
 #' @importFrom dplyr left_join
 #' @importFrom parallel mclapply
