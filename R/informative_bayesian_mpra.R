@@ -607,6 +607,7 @@ run_sampler = function(snp_data, marg_dna_prior, save_nonfunctional, out_dir, nu
 #' @importFrom dplyr left_join
 #' @importFrom parallel mclapply
 #' @importFrom purrr map
+#' @importFrom purrr map2
 #' @importFrom tidyr nest
 #' @export
 bayesian_mpra_analyze = function(mpra_data, 
