@@ -609,6 +609,7 @@ run_sampler = function(snp_data, marg_dna_prior, save_nonfunctional, out_dir, nu
 #' @importFrom purrr map
 #' @importFrom purrr map2
 #' @importFrom tidyr nest
+#' @importFrom rstan stan_model
 #' @export
 bayesian_mpra_analyze = function(mpra_data, 
                                  predictors, 
