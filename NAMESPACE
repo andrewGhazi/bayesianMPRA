@@ -34,3 +34,6 @@ importFrom(tibble,as.tibble)
 importFrom(tidyr,gather)
 importFrom(tidyr,nest)
 importFrom(tidyr,unnest)
+importFrom("stats", "constrOptim", "cov2cor", "dgamma", "dist",
+             "dnorm", "na.omit", "optim", "quantile", "var")
+  importFrom("utils", "data", "head")
