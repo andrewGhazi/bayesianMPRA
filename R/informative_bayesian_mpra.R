@@ -672,7 +672,7 @@ bayesian_mpra_analyze = function(mpra_data,
   
   print('Running MCMC samplers...')
   
-  model_object2 = stan_model(model_code = model_string)
+  #model_object2 = stan_model(model_code = model_string)
   mpra_data %>% 
     group_by(snp_id) %>%
     nest %>%
