@@ -5,7 +5,7 @@
 \title{Bayesian analysis of MPRA data}
 \usage{
 bayesian_mpra_analyze(mpra_data, predictors, use_marg_prior = FALSE, out_dir,
-  save_nonfunctional = FALSE,
+  mpra_model_object, save_nonfunctional = FALSE,
   normalization_method = "quantile_normalization", num_cores = 1)
 }
 \arguments{
