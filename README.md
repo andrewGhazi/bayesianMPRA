@@ -12,7 +12,7 @@ This package is still evolving and may be broken at times. If you run into a pro
 The package requires the tidyverse packages, `rstan`, `coda`, and `fitdistrplus` and suggests the bioconductor package `preprocessCore`.
 
 ```
-install.packages(pkgs = c('tidyverse', 'rstan', 'coda', 'fitdistrplus'))
+install.packages(pkgs = c('tidyverse', 'rstan', 'coda', 'fitdistrplus', 'magrittr'))
 
 ## try http:// if https:// URLs are not supported
 source("https://bioconductor.org/biocLite.R")
@@ -65,7 +65,13 @@ Give the function `bayesian_mpra_analyze` a data frame of MPRA counts `mpra_data
  9  10 45963777 2/3      0.554320   2.323613
 10  10 45965085 1/3     -0.277360  -1.377249
 # ... with 900 more rows
+```
 
+Compile a stan model on your machine (using the provided Stan model code) and run the Bayesian analysis.
+```
+library(rstan)
+library(bayesianMPRA)
+my_model_object = stan_model(model_code = mpra_model_string)
 bayesian_mpra_analyze(mpra_data, predictorss, out_dir = '~/bayesianMPRA/analysis_outputs/', num_cores = 8)
 
 ```
