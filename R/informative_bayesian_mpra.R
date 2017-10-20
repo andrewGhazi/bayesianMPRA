@@ -615,6 +615,7 @@ bayesian_mpra_analyze = function(mpra_data,
                                  predictors, 
                                  use_marg_prior = FALSE, 
                                  out_dir, 
+                                 mpra_model_object,
                                  save_nonfunctional = FALSE,
                                  normalization_method = 'quantile_normalization', 
                                  num_cores = 1) {
@@ -682,7 +683,7 @@ bayesian_mpra_analyze = function(mpra_data,
                                             save_nonfunctional = save_nonfunctional,
                                             out_dir = out_dir,
                                             norm_method = normalization_method,
-                                            object = model_object2,
+                                            object = mpra_model_object,
                                             mc.cores = num_cores)))
   
 }
