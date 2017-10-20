@@ -72,7 +72,7 @@ Compile a stan model on your machine (using the provided Stan model code) and ru
 library(rstan)
 library(bayesianMPRA)
 my_model_object = stan_model(model_code = mpra_model_string)
-bayesian_mpra_analyze(mpra_data, predictorss, out_dir = '~/bayesianMPRA/analysis_outputs/', num_cores = 8)
+bayesian_mpra_analyze(mpra_data, predictorss, out_dir = '~/bayesianMPRA/analysis_outputs/', num_cores = 2, mpra_model_object = my_model_object))
 
 ```
 #### Outputs  
