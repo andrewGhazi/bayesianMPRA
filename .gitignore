@@ -7,3 +7,4 @@ outputs/*
 external_software/*
 RMarkdown/*
 analysis/tmp/*
+analysis_outputs/*
