@@ -72,13 +72,13 @@ Compile a stan model on your machine (using the provided Stan model code) and ru
 library(rstan)
 library(bayesianMPRA)
 my_model_object = stan_model(model_code = mpra_model_string)
-bayesian_mpra_analyze(mpra_data, predictorss, out_dir = '~/bayesianMPRA/analysis_outputs/', num_cores = 2, mpra_model_object = my_model_object))
+bayesian_mpra_analyze(mpra_data = mpra_data, predictors = predictors, out_dir = '~/bayesianMPRA/analysis_outputs/', num_cores = 2, mpra_model_object = my_model_object), normalization_method = 'quantile_normalization', use_marg_prior = FALSE, save_nonfunctional = FALSE)
 
 ```
 #### Outputs  
-The output will be a data frame with a row for each `snp_id` containing a nested column of the count data, along with columns giving the MLE negative binomial parameters, the estimated gamma prior, and a binary call of "functional" or "non-functional" based on the snp_id's posterior. 
+The output will be a data frame with a row for each `snp_id` containing a nested column of the count data, along with columns giving the MLE negative binomial parameters, the estimated gamma prior, and a binary call of "functional" or "non-functional" based on the snp_id's posterior (according to a 95% HPD interval on transcriptional shift). 
 
-For functional variants (according to a 95% HPD interval on transcriptional shift), the MCMC results, transcriptional shift posteriors, transcriptional shift HDI's, and mean transcriptional shifts are written to appropriately named .RData objects in `out_dir`.
+For functional variants, the MCMC results, transcriptional shift posteriors, transcriptional shift HDI's, and mean transcriptional shifts are written to appropriately named .RData objects in `out_dir`.
 
 ## Notes
 
