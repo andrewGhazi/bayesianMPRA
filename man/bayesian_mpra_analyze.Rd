@@ -13,15 +13,17 @@ bayesian_mpra_analyze(mpra_data, predictors, use_marg_prior = FALSE, out_dir,
 
 \item{predictors}{a matching data frame of annotations}
 
+\item{use_marg_prior}{logical indicating whether or not to disregard the functional predictors and use a marginal prior estimated from the entire assay}
+
 \item{out_dir}{a directory that you want the outputs written to. Make sure it ends with a forward slash.}
+
+\item{mpra_model_object}{a stan model object compiled with rstan::stan_model(model_code = mpra_model_string). mpra_model_string is a data object bundled with the package.}
 
 \item{save_nonfunctional}{logical indicating whether to save the sampler results of non-functional variants.}
 
 \item{normalization_method}{character vector indicating which method to use for aggregating information across samples. Must be either 'quantile_normalization' or 'depth_normalization'}
 
 \item{num_cores}{integer indicating how many cores to use for parallelization. Currently the analysis takes ~15s per variant on a first-gen i7 CPU, so setting this as high as possible is recommended as long as you have plenty of RAM.}
-
-\item{marginal_prior}{logical indicating whether or not to disregard the functional predictors and use a marginal prior estimated from the entire assay}
 }
 \description{
 Given MPRA data and a set of predictors, perform a Bayesian analysis of variants using an empirical prior

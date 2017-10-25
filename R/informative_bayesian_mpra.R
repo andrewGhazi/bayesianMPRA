@@ -583,9 +583,10 @@ run_sampler = function(snp_data, marg_dna_prior, save_nonfunctional, out_dir, nu
 #' @description Given MPRA data and a set of predictors, perform a Bayesian analysis of variants using an empirical prior
 #' @param mpra_data a data frame of mpra data
 #' @param predictors a matching data frame of annotations
+#' @param use_marg_prior logical indicating whether or not to disregard the functional predictors and use a marginal prior estimated from the entire assay
 #' @param out_dir a directory that you want the outputs written to. Make sure it ends with a forward slash.
+#' @param mpra_model_object a stan model object compiled with rstan::stan_model(model_code = mpra_model_string). mpra_model_string is a data object bundled with the package.
 #' @param save_nonfunctional logical indicating whether to save the sampler results of non-functional variants. 
-#' @param marginal_prior logical indicating whether or not to disregard the functional predictors and use a marginal prior estimated from the entire assay
 #' @param normalization_method character vector indicating which method to use for aggregating information across samples. Must be either 'quantile_normalization' or 'depth_normalization'
 #' @param num_cores integer indicating how many cores to use for parallelization. Currently the analysis takes ~15s per variant on a first-gen i7 CPU, so setting this as high as possible is recommended as long as you have plenty of RAM.
 #' @details \code{mpra_data} must meet the following format conditions: \enumerate{ 
@@ -621,6 +622,14 @@ bayesian_mpra_analyze = function(mpra_data,
                                  num_cores = 1) {
   # mpra_data is a data frame with columns like so:
   # one column called snp_id
+  
+  if (normalization_method != 'quantile_normalization') {
+    stop('Normalization methods other than quantile normalization are not yet implemented.')
+  }
+  
+  if (use_marg_prior) {
+    stop('The use of a marginal prior is not yet implemented.')
+  }
   
   if (!use_marg_prior) {
     # Initialize the kernel at some small value based on the typical distances in the input distance matrix
