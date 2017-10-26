@@ -1,6 +1,8 @@
 # Let's simulate data based on simulated distributions of effect sizes and see
 # how the power shakes out
 
+# TODO resample nb mle estimates, rather than TS. That would probably be a more realistic simulation
+
 library(tidyverse)
 
 n_allele = 1000
@@ -12,7 +14,7 @@ load("~/bayesianMPRA/analysis_data/varInfoWithHistoneMarkAnnotations.RData")
 ts_dens = density(varInfo$transcription_shift, n = 1024)
 
 sample_depths = data_frame(sample = c(paste0('dna', 1:n_dna), paste0('rna', 1:n_rna)),
-                           depth = floor(runif(n_rna+n_dna)))
+                           depth = floor(runif(n_rna+n_dna, 4e5, 2e6)))
 
 sample_ts_dens = function(n){
   sample(ts_dens$x,
