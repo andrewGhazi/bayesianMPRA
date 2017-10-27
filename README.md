@@ -9,7 +9,7 @@ This package is still evolving and may be broken at times. If you run into a pro
 
 ### Dependencies  
 
-The package requires the tidyverse packages, `rstan`, `coda`, and `fitdistrplus` and suggests the bioconductor package `preprocessCore`.
+The package requires the tidyverse packages, `rstan`, `coda`, `magrittr`, and `fitdistrplus` and suggests the bioconductor package `preprocessCore`.
 
 ```
 install.packages(pkgs = c('tidyverse', 'rstan', 'coda', 'fitdistrplus', 'magrittr'))
