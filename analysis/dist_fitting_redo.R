@@ -1,5 +1,10 @@
+library(tidyverse)
+library(parallel)
+
 fit_nb = function(sample_allele_counts){
   if (sum(sample_allele_counts) == 0){
+    return(NA)
+  } else if (length(sample_allele_counts) < 2){
     return(NA)
   }
   
@@ -15,11 +20,9 @@ mpra_data$count_data[[9]] %>%
 
 est_sample_nb = function(count_dat){
   # count_dat - a tibble with a allele (ref/mut) column and columns of observed MPRA counts in given transfections
-  # uses fitdistrplus::fitdist because MASS::fitdistr was cracking wise at me
-  # using a modified version of fitdistrplus::mledist because the regular version can't use non-integer weights (and it was cracking wise)
   
   count_dat %>% 
-    gather(block, count, -allele) %>% 
+    gather(block, count, -allele, -barcode) %>% 
     group_by(allele, block) %>% 
     summarise(mle_neg_bin = list(fit_nb(count))) %>% 
     ungroup %>% 
@@ -28,5 +31,50 @@ est_sample_nb = function(count_dat){
            nb_size_est = map_dbl(mle_neg_bin, ~.x$estimate['size'])) %>% 
     dplyr::select(-mle_neg_bin)
 }
+
+load('~/bayesianMPRA/analysis_data/tewhey_subset.RData')
+
+total_counts = tewhey_subset %>% 
+  mutate(sample = gsub('ctrl', 'DNA', sample) %>% gsub('HepG2', 'HepG2_RNA', .)) %>% 
+  filter(grepl('DNA', sample)) %>% 
+  group_by(sample) %>%
+  summarise(total_count = sum(count)) 
+
+tewhey_subset %>% 
+  mutate(sample = gsub('ctrl', 'DNA', sample) %>% gsub('HepG2', 'HepG2_RNA', .)) %>% 
+  left_join(total_counts, by = 'sample') %>%
+  mutate(depth_adj_count = count / total_count * 1e6) %>%
+  filter(grepl('DNA', sample)) %>% 
+  ggplot(aes(depth_adj_count)) +
+  geom_density(aes(color = sample)) +
+  scale_x_log10() +
+  geom_vline(xintercept = 10**.33,
+             lty = 2,
+             color = 'grey30')
+
+t_sub = tewhey_subset %>% 
+  mutate(sample = gsub('ctrl', 'DNA', sample) %>% gsub('HepG2', 'HepG2_RNA', .)) %>% 
+  spread(sample, count, fill = 0) %>% 
+  group_by(snp_id) %>% 
+  nest
+
+filter_poorly_represented = function(count_dat){
+  depth_adj_dna = count_dat %>% 
+    dplyr::select(barcode, contains('DNA')) %>% 
+    gather(sample, count, -barcode) %>% 
+    left_join(total_counts, by = 'sample') %>% 
+    mutate(depth_adj_count = 1e6 * count / total_count) %>% 
+    group_by(barcode) %>% 
+    summarise(dna_depth_adj_mean = mean(depth_adj_count))
+  
+  good_dna = depth_adj_dna %>% 
+    filter(dna_depth_adj_mean > 10**.33)
+  
+  count_dat %>% 
+    filter(barcode %in% good_dna$barcode)
+}
+
+t_sub %<>% mutate(data = mclapply(data, filter_poorly_represented, mc.cores = 20),
+                  nb_params = mclapply(data, fit_nb, mc.cores = 20))
 
 
