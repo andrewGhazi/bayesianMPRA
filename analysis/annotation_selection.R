@@ -8,7 +8,10 @@ library(magrittr)
 
 load("~/bayesianMPRA/analysis_data/varInfoWithHistoneMarkAnnotations.RData")
 
-tmp = train(x = varInfo %>% dplyr::select(contains('K562')), y = varInfo %>% dplyr::select(transcription_shift) %>% pull)
+tmp = train(x = varInfo %>% dplyr::select(contains('K562')), 
+            y = varInfo %>% dplyr::select(transcription_shift) %>% pull,
+            ntree = 100,
+            importance = TRUE)
 
 varInfo %<>%
   mutate(fold = base::sample(1:10, 
