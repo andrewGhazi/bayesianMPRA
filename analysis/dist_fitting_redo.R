@@ -77,4 +77,8 @@ filter_poorly_represented = function(count_dat){
 t_sub %<>% mutate(data = mclapply(data, filter_poorly_represented, mc.cores = 20),
                   nb_params = mclapply(data, fit_nb, mc.cores = 20))
 
+# Assign weights
 
+# Fit Gammas
+
+# Run sampler
