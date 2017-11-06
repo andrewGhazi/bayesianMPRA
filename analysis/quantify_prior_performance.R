@@ -6,7 +6,8 @@
 library(tidyverse)
 library(magrittr)
 library(fitdistrplus)
-source('~/utility/scripts/utilityFunctions.R')
+library(ghzutils)
+#source('~/utility/scripts/utilityFunctions.R')
 
 #### Estimate marginal neg bin distribution on counts in each sample ----
 load("~/bayesianMPRA/outputs/varInfoWithNegBinAndGammaParams.RData")
