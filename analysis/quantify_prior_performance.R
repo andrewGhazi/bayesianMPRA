@@ -57,7 +57,15 @@ prior_gain %>% dplyr::select(construct, conditional_improvement) %>% unnest %>% 
 
 prior_gain %>% 
   dplyr::select(construct, transcriptionalShift, conditional_improvement) %>% 
-  unnest %>% ggplot(aes(transcriptionalShift, prior_ratio)) + geom_point(alpha = .1) + scale_y_log10(limits = c(exp(-2.5),exp(2.5)))
+  unnest %>% ggplot(aes(transcriptionalShift, prior_ratio)) + 
+  geom_point(alpha = .1) +
+  scale_y_log10(limits = c(exp(-2.5),exp(2.5))) + 
+  theme_pres() + 
+  geom_hline(yintercept = 1, 
+             lty = 2,
+             color = 'grey60') + 
+  labs(y = 'ML Parameter estimate density ratio \nunder conditional and marginal prior')
+ggsave('~/bayesianMPRA/analysis_outputs/plots/prior_gain.png')
 
 prior_gain %>% 
   dplyr::select(construct, transcriptionalShift, conditional_improvement) %>% 
