@@ -639,9 +639,25 @@ bayesian_mpra_analyze = function(mpra_data,
     
     print('Computing neg_bin parameters by sample and allele...')
     mpra_data %<>%
-      mutate(nb_params = mclapply(count_data, est_sample_params, mc.cores = num_cores))
+      mutate(nb_params = mclapply(count_data, est_sample_params, mc.cores = num_cores)) # ~11 / second / core
     
-    print('Fitting marginal gamma priors...')
+    print('Fitting marginal gamma priors on RNA samples...')
+    marg_rna_gamma_priors = mpra_data %>%
+      select(snp_id, nb_params) %>% 
+      unnest() %>%
+      na.omit %>% 
+      filter(grepl('RNA', block)) %>% # The marginal DNA prior shouldn't care about ref/alt and it gets attached later
+      group_by(block, allele) %>% 
+      summarise(gamma_mu_prior = list(try(fitdist(data = nb_mu_est, distr = 'gamma', lower = 0))),
+                gamma_size_prior = list(try(fitdist(data = nb_size_est, distr = 'gamma', lower = 0))),
+                mu_gamma_priors = map(gamma_mu_prior, ~.x$estimate), # This and the next line just reformat things to work with the existing code
+                size_gamma_priors = map(gamma_size_prior, ~.x$estimate)) %>% 
+      select(-gamma_mu_prior, -gamma_size_prior) %>% 
+      ungroup
+    
+    mpra_data %<>% 
+      mutate(rna_gamma_params = list(marg_rna_gamma_priors))
+    
   }
   
   if (!use_marg_prior) {
