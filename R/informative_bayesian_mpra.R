@@ -624,12 +624,20 @@ bayesian_mpra_analyze = function(mpra_data,
   # mpra_data is a data frame with columns like so:
   # one column called snp_id
   
+  if (missing(mpra_data)) {
+    stop('mpra_data is missing: You must provide MPRA counts to do Bayesian MPRA analysis ಠ_ಠ')
+  }
+  
   if (normalization_method != 'quantile_normalization') {
     stop('Normalization methods other than quantile normalization are not yet implemented.')
   }
   
+  if (missing(out_dir)) {
+    stop('You must specify an output directory out_dir')
+  }
+  
   if (use_marg_prior) {
-    stop('The use of a marginal prior is not yet implemented.')
+    #stop('The use of a marginal prior is not yet implemented.')
     
     print('Organizing count data...')
     mpra_data %<>% 
