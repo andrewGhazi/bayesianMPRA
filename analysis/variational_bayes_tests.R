@@ -1,4 +1,4 @@
-run_vb = function(snp_data, n_iter = 3334){
+run_vb = function(snp_data, n_iter = 3334, save_result = FALSE){
   # snp_data - a data_frame with one row containing a column called countData and another called RNAgammaParams
   
   # Given a matrix of counts (rows = barcodes, columns = samples) and a
@@ -90,16 +90,13 @@ run_vb = function(snp_data, n_iter = 3334){
                    muDNAHyperParams = mu_DNA_hyper_params,
                    phiDNAHyperParams = phi_DNA_hyper_params)
   
-  sampling_result = sampling(object = model,
-                             data = data_list,
-                             chains = 3,
-                             iter = n_iter,
-                             warmup = 500,
-                             thin = 1,
-                             verbose = FALSE) #friggin stan still verbose af
+  vb_result = vb(object = model,
+                 data = data_list) #friggin stan still verbose af
   
-  save(list = c('sampling_result' , 'snp_data'),
-       file = paste0('~/bayesianMPRA/outputs/ulirsch_sampler_results/', snp_data$construct, '.RData'))
+  if (save_result) {
+    save(list = c('vb_result' , 'snp_data'),
+         file = paste0('~/bayesianMPRA/outputs/ulirsch_sampler_results/', snp_data$construct, '.RData'))
+  }
   
-  return('finished')
+  return(vb_result)
 }

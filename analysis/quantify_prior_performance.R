@@ -64,7 +64,8 @@ prior_gain %>%
   geom_hline(yintercept = 1, 
              lty = 2,
              color = 'grey60') + 
-  labs(y = 'ML Parameter estimate density ratio \nunder conditional and marginal prior')
+  labs(y = 'Prior Ratio',
+       x = 'Transcription Shift')
 ggsave('~/bayesianMPRA/analysis_outputs/plots/prior_gain.png')
 
 prior_gain %>% 

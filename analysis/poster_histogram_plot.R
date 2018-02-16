@@ -223,7 +223,7 @@ p = get_snp_TS_samples(more_samples) %>%
                  bins = 40, 
                  color = 'black', 
                  fill = 'grey60') +
-  ggtitle('chr9:136155000 C to T from Ulirsch et al., Cell 2016') +
+  ggtitle('TS Posterior - chr9:136155000 C to T\nfrom Ulirsch et al., Cell 2016') +
   xlab('Transcriptional Shift') +
   geom_segment(data = data_frame(x = .144761, xend = .872504, y = -.05, yend = -.05),
                inherit.aes = FALSE,
@@ -236,5 +236,10 @@ ggsave(filename = '~/bayesianMPRA/outputs/plots/example_functional.png',
        plot = p,
        width = 10,
        height = 4.92)
+
+ggsave(filename = '~/bayesianMPRA/outputs/plots/example_functional2.png',
+       plot = p,
+       width = 10,
+       height = 6.5)
 
 

@@ -7,7 +7,7 @@ library(preprocessCore)
 library(coda)
 source('~/bayesianMPRA/analysis/mledistModified.R')
 
-load('~/bayesianMPRA/outputs/objects_for_isolated_run.RData')
+load('~/bayesianMPRA/analysis/outputs/objects_for_isolated_run.RData')
 
 sampler_results = varInfo %>%
   group_by(construct) %>%
