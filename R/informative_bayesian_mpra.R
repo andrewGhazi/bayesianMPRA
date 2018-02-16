@@ -387,6 +387,7 @@ fit_DNA_prior = function(mpra_data){
            beta_est = map_dbl(marg_gamma_estimate, ~.x$estimate[2]))
 }
 
+
 #' quantile normalize parameters
 #' 
 #' @importFrom preprocessCore normalize.quantiles
@@ -629,6 +630,18 @@ bayesian_mpra_analyze = function(mpra_data,
   
   if (use_marg_prior) {
     stop('The use of a marginal prior is not yet implemented.')
+    
+    print('Organizing count data...')
+    mpra_data %<>% 
+      dplyr::select(matches('snp_id|RNA|DNA|allele')) %>% 
+      group_by(snp_id) %>% 
+      nest(.key = count_data) 
+    
+    print('Computing neg_bin parameters by sample and allele...')
+    mpra_data %<>%
+      mutate(nb_params = mclapply(count_data, est_sample_params, mc.cores = num_cores))
+    
+    print('Fitting marginal gamma priors...')
   }
   
   if (!use_marg_prior) {
@@ -664,7 +677,7 @@ bayesian_mpra_analyze = function(mpra_data,
     mpra_data %<>%
       mutate(weights = mclapply(1:nrow(.), find_weights, dist_mat = dist_mat, min_dist_kernel = min_dist_kernel, mc.cores = num_cores))
     
-    print('Computing neg_bin parameters by sample and allele')
+    print('Computing neg_bin parameters by sample and allele...')
     mpra_data %<>%
       mutate(nb_params = mclapply(count_data, est_sample_params, mc.cores = num_cores))
     
