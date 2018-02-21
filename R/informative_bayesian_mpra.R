@@ -628,6 +628,11 @@ bayesian_mpra_analyze = function(mpra_data,
     stop('mpra_data is missing: You must provide MPRA counts to do Bayesian MPRA analysis ಠ_ಠ')
   }
   
+  if (missing(predictors)) {
+    use_marg_prior = TRUE
+    warning('predictors argument is empty. Argument use_marg_prior has been set to TRUE')
+  }
+  
   if (normalization_method != 'quantile_normalization') {
     stop('Normalization methods other than quantile normalization are not yet implemented.')
   }
@@ -666,9 +671,7 @@ bayesian_mpra_analyze = function(mpra_data,
     mpra_data %<>% 
       mutate(rna_gamma_params = list(marg_rna_gamma_priors))
     
-  }
-  
-  if (!use_marg_prior) {
+  } else {
     # Initialize the kernel at some small value based on the typical distances in the input distance matrix
     ordered_preds = mpra_data %>% 
       dplyr::select(snp_id) %>% 
@@ -708,9 +711,6 @@ bayesian_mpra_analyze = function(mpra_data,
     print('Fitting annotation-based gamma prior...')
     mpra_data %<>%
       mutate(rna_gamma_params = mclapply(1:n(), fit_gamma_priors, mpra_data = mpra_data, mc.cores = num_cores))
-  } else {
-    # assign marginal priors to the RNA samples
-    stop('Marginal DNA priors are not yet implemented.')
   }
   
   print('Fitting marginal prior to DNA samples...')
