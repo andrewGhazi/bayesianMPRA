@@ -326,41 +326,35 @@ plus_or_homebrew_size = function(weights, size_estimates, initial_size_guess){
 #' @importFrom dplyr group_by
 #' @importFrom dplyr summarise
 #' @importFrom dplyr ungroup
-fit_gamma_priors = function(snp_id_num, mpra_data){ 
+fit_gamma_priors = function(snp_id_num, mpra_data, marg_rna_gamma_prior){ 
   snp_in_question = mpra_data[snp_id_num,]
   others = mpra_data[-snp_id_num,]
-  
   
   data_for_estimates = others %>% 
     mutate(weight = snp_in_question$weights[[1]]) %>% 
     dplyr::select(snp_id, nb_params, weight) %>% 
     unnest %>% 
-    na.omit %>% 
-    filter(weight > 1e-4*sort(snp_in_question$weights[[1]], decreasing = TRUE)[30], # This is necessary for speed)
-           grepl('RNA', block)) # Only fit conditional prior on RNA. DNA counts use a marginal prior
+    na.omit
   
-  mu_dat = data_for_estimates$nb_mu_est
-  initial_mu_guess = list(shape = mean(mu_dat, na.rm = TRUE)**2 / var(mu_dat, na.rm = TRUE), 
-                          rate = mean(mu_dat, na.rm = TRUE) / var(mu_dat, na.rm = TRUE))
-  
-  size_dat = data_for_estimates$nb_size_est[data_for_estimates$nb_size_est < quantile(data_for_estimates$nb_size_est, .99)]
-  initial_size_guess = list(shape = mean(size_dat, na.rm = TRUE)**2 / var(size_dat, na.rm = TRUE), 
-                            rate = mean(size_dat, na.rm = TRUE) / var(size_dat, na.rm = TRUE))
-  
-  data_for_estimates %>% 
+  gamma_priors = data_for_estimates %>% 
     group_by(allele, block) %>% 
-    summarise(mu_gamma_priors = list(plus_or_homebrew_mu(weight, 
-                                                         nb_mu_est, 
-                                                         initial_mu_guess)),
-              size_gamma_priors = list(plus_or_homebrew_size(weight[nb_size_est < 1e4], # Have to impose a size restriction / magic number
-                                                             nb_size_est[nb_size_est < 1e4], 
-                                                             initial_size_guess))) %>% 
-    ungroup
+    summarise(mu_gamma_priors = list(try(fitdist(nb_mu_est, 'gamma', lower = c(0,0)))),
+              size_gamma_priors = list(try(fitdist(nb_size_est, 'gamma', lower = c(0,0))))) %>% 
+    left_join(marg_rna_gamma_prior)
   
-  # Estimates of the size parameter can be unstable (because variance = mu + mu^2
-  # / size so size --> Inf as var --> mu) so we cut out those that are above the
-  # 99th quantile. These are variants that are essentially poisson in their
-  # counts so we're slightly biasing our result to show HIGHER variance.
+  ## If the gamma fitting failed, find where
+  failed_mu = map_lgl(gamma_priors$mu_gamma_priors, ~class(.x) == 'try-error')
+  failed_size = map_lgl(gamma_priors$size_gamma_priors, ~class(.x) == 'try-error')
+  
+  # Replace failed prior estimates with marginal estimates
+  gamma_priors$mu_gamma_priors[failed_mu] = gamma_priors$mu_marg_gamma_prior[failed_mu]
+  gamma_priors$size_gamma_priors[failed_size] = gamma_priors$size_marg_gamma_prior[failed_size]
+  
+  gamma_priors %>% 
+    mutate(mu_gamma_priors = map(mu_gamma_priors, ~.x$estimate),
+           size_gamma_priors = map(size_gamma_priors, ~.x$estimate)) %>% 
+    select(allele, block, mu_gamma_priors, size_gamma_priors)
+  
 }
 
 #' @importFrom magrittr %>%
@@ -708,9 +702,30 @@ bayesian_mpra_analyze = function(mpra_data,
     mpra_data %<>%
       mutate(nb_params = mclapply(count_data, est_sample_params, mc.cores = num_cores))
     
+    marg_rna_gamma_prior = mpra_data %>% 
+      dplyr::select(nb_params) %>% 
+      unnest %>% 
+      na.omit %>% 
+      filter(grepl('RNA', block)) %>% 
+      group_by(allele, block) %>% 
+      summarise(mu_marg_gamma_prior = list(fitdist(data = nb_mu_est,
+                                              distr = 'gamma',
+                                              lower = c(0,0))),
+                size_marg_gamma_prior = list(fitdist(data = nb_size_est,
+                                                distr = 'gamma',
+                                                lower = c(0,0))),
+                mu_prior_shape = map_dbl(mu_marg_gamma_prior, ~.x$estimate[1]),
+                mu_prior_rate = map_dbl(mu_marg_gamma_prior, ~.x$estimate[2]),
+                size_prior_shape = map_dbl(size_marg_gamma_prior, ~.x$estimate[1]),
+                size_prior_rate = map_dbl(size_marg_gamma_prior, ~.x$estimate[2]))
+    
     print('Fitting annotation-based gamma prior...')
     mpra_data %<>%
-      mutate(rna_gamma_params = mclapply(1:n(), fit_gamma_priors, mpra_data = mpra_data, mc.cores = num_cores))
+      mutate(rna_gamma_params = mclapply(1:n(), 
+                                         fit_gamma_priors, 
+                                         mpra_data = mpra_data,
+                                         marg_rna_gamma_prior = marg_rna_gamma_prior,
+                                         mc.cores = num_cores))
   }
   
   print('Fitting marginal prior to DNA samples...')
