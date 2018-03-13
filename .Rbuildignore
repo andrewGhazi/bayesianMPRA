@@ -6,3 +6,8 @@
 ^RMarkdown/*$
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^analysis_data$
+^analysis$
+^analysis_outputs$
+^external_software$
+^outputs$
