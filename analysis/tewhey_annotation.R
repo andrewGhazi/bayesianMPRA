@@ -3,8 +3,38 @@
 library(parallel)
 library(data.table)
 library(magrittr)
+library(stringr)
 library(tidyverse)
 
+tewhey_snps = read_tsv('/mnt/bigData2/andrew/MPRA/Tewhey/GSE75661_79k_collapsed_counts.txt', # this data is already summed across barcodes, I'm just using it to get the sample depths
+                       col_names = TRUE) %>% 
+  select(Oligo) %>% 
+  separate(Oligo, into = c('snp_id', 'allele'), sep = stringr::regex('(?=[AB]$)')) %>%
+  mutate(snp_id = gsub(pattern = '_$', replacement = '', x = snp_id, perl = TRUE)) %>% 
+  filter(grepl('rs', snp_id)) %>%  # Most of those removed are indels (eg chr1:150824527:I_RC, 5452 of them) or formats I don't understand (chr6:32629802,  MERGED_DEL_2_2432_RC, 102 of them)
+  select(-allele) %>% 
+  mutate(rs_id = str_extract(snp_id, 'rs[0-9]+$')) %>% 
+  select(rs_id) %>% 
+  unique %>% 
+  na.omit
+
+write_tsv(tewhey_snps,
+          path = 'analysis_outputs/tewhey_snps.tsv',
+          col_names = FALSE)
+
+# Command to get the appropriate annovar input of the Tewhey rsid's. convert2annovar.pl doesn't work, so the github link below was adapted to this command.
+# grep -w -f ~/bayesianMPRA/analysis_outputs/tewhey_snps.tsv hg19_avsnp147.txt > ~/bayesianMPRA/analysis_outputs/tewhey_snps.avinput
+# https://github.com/WGLab/doc-ANNOVAR/issues/16
+
+# Annotate these with annovar
+
+tewhey_snps %>%
+  select(snp_id) %>%
+  unique %>% 
+  mutate(snp_id = gsub('_RC$', '', snp_id, perl = TRUE)) %>% # I believe these refer to reverse complements 
+  unique
+
+#### Depth normalization ----
 sample_sums = read_tsv('/mnt/bigData2/andrew/MPRA/Tewhey/GSE75661_79k_collapsed_counts.txt', # this data is already summed across barcodes, I'm just using it to get the sample depths
                       col_names = TRUE) %>%
   separate(Oligo, into = c('snp_id', 'allele'), sep = stringr::regex('(?=[AB]$)')) %>%
