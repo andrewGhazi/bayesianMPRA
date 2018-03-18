@@ -13,14 +13,19 @@ tewhey_snps = read_tsv('/mnt/bigData2/andrew/MPRA/Tewhey/GSE75661_79k_collapsed_
   mutate(snp_id = gsub(pattern = '_$', replacement = '', x = snp_id, perl = TRUE)) %>% 
   filter(grepl('rs', snp_id)) %>%  # Most of those removed are indels (eg chr1:150824527:I_RC, 5452 of them) or formats I don't understand (chr6:32629802,  MERGED_DEL_2_2432_RC, 102 of them)
   select(-allele) %>% 
-  mutate(rs_id = str_extract(snp_id, 'rs[0-9]+$')) %>% 
+  mutate(rs_id = str_extract(snp_id, 'rs[0-9]+')) %>% 
   select(rs_id) %>% 
   unique %>% 
-  na.omit
+  na.omit %>% 
+  mutate(type = 'dbsnp') %>% 
+  rename(Name = rs_id) %>% 
+  select(type, Name)
 
 write_tsv(tewhey_snps,
-          path = 'analysis_outputs/tewhey_snps.tsv',
+          path = 'analysis_outputs/tewhey_snps.txt',
           col_names = FALSE)
+
+# http://snp-nexus.org/test/snpnexus_11701/results.html
 
 # Command to get the appropriate annovar input of the Tewhey rsid's. convert2annovar.pl doesn't work, so the github link below was adapted to this command.
 # grep -w -f ~/bayesianMPRA/analysis_outputs/tewhey_snps.tsv hg19_avsnp147.txt > ~/bayesianMPRA/analysis_outputs/tewhey_snps.avinput
