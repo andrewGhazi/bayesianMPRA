@@ -230,8 +230,8 @@ fit_gamma_priors = function(snp_id_num, mpra_data, marg_rna_gamma_prior){
   
   gamma_priors = data_for_estimates %>% 
     group_by(allele, block) %>% 
-    summarise(mu_gamma_priors = list(try(fitdist(nb_mu_est, 'gamma', lower = c(0,0)))),
-              size_gamma_priors = list(try(fitdist(nb_size_est, 'gamma', lower = c(0,0))))) %>% 
+    summarise(mu_gamma_priors = list(try(fitdist(nb_mu_est, 'gamma', lower = c(0,0), weights = weight))),
+              size_gamma_priors = list(try(fitdist(nb_size_est, 'gamma', lower = c(0,0), weights = weight)))) %>% 
     left_join(marg_rna_gamma_prior)
   
   ## If the gamma fitting failed, find where
