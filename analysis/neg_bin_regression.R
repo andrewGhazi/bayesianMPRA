@@ -93,15 +93,15 @@ parameters {
   vector<lower=0>[n_alleles] d_p_i;
 }
 model {
-  rna_m_a ~ gamma(20,20); // priors on allele level gamma parameters for RNA and DNA
-  rna_m_b ~ gamma(20,20);
-  rna_p_a ~ gamma(20,20);
-  rna_p_b ~ gamma(20,20);
+  rna_m_a ~ gamma(1,1); // priors on allele level gamma parameters for RNA and DNA
+  rna_m_b ~ gamma(1,1);
+  rna_p_a ~ gamma(1,1);
+  rna_p_b ~ gamma(1,1);
   
-  dna_m_a ~ gamma(20,20);
-  dna_m_b ~ gamma(20,20);
-  dna_p_a ~ gamma(20,20);
-  dna_p_b ~ gamma(20,20);
+  dna_m_a ~ gamma(1,1);
+  dna_m_b ~ gamma(1,1);
+  dna_p_a ~ gamma(1,1);
+  dna_p_b ~ gamma(1,1);
   
   r_m_i[allele] ~ gamma(rna_m_a, rna_m_b); // priors on negative binomial parameters
   r_p_i[allele] ~ gamma(rna_p_a, rna_p_b);
@@ -110,11 +110,11 @@ model {
   d_p_i[allele] ~ gamma(dna_p_a, dna_p_b);
 
   for (s in 1:n_rna_samples) {
-    rna_counts[allele, s] ~ neg_binomial_2(r_m_i[allele] / rna_depths[s], r_p_i[allele]);
+    rna_counts[allele, s] ~ neg_binomial_2(r_m_i[allele] * rna_depths[s], r_p_i[allele]);
   }
 
   for (s in 1:n_dna_samples){
-    dna_counts[allele, s] ~ neg_binomial_2(d_m_i[allele] / dna_depths[s], d_p_i[allele]);
+    dna_counts[allele, s] ~ neg_binomial_2(d_m_i[allele] * dna_depths[s], d_p_i[allele]);
   }
 }
 '
@@ -150,9 +150,24 @@ data_list = list(n_rna_samples = mpra_data$count_data %>% bind_rows %>% select(m
                  rna_depths = depth_factors %>% filter(grepl('RNA', sample)) %>% pull(depth_factor),
                  dna_depths = depth_factors %>% filter(grepl('DNA', sample)) %>% pull(depth_factor))
 
+vb_test = vb(object = nb_basal_object,
+             data = data_list)
+
+vb_test %>% rstan::extract() %>% map(as_tibble) %>% map2(., names(.), ~set_names(.x, paste(.y, names(.x), sep = '_')))
+
+
 test_samp = sampling(nb_basal_object,
                      data = data_list,
                      cores = 4,
                      chains = 4,
-                     iter = 3000,
-                     warmup = 500)
+                     iter = 2000,
+                     warmup = 200)
+
+test_samp2 = sampling(nb_basal_object,
+                     data = data_list,
+                     cores = 4,
+                     chains = 4,
+                     iter = 2000,
+                     warmup = 200)
+save(test_samp, file = '/mnt/bigData2/andrew/analysis_outputs/test_samp.RData')
+save(test_samp2, file = '/mnt/bigData2/andrew/analysis_outputs/test_samp2.RData')
