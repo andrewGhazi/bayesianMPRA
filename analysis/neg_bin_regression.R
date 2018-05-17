@@ -313,9 +313,9 @@ fit_nb = function(counts){
                  log = TRUE))
   }
   
-  optim(par = c(100, 1),
-        fn_to_min,
-        lower = c(0,0))
+  stats::nlminb(start = c(100, 1),
+                objective = fn_to_min,
+                lower = c(0,0))
 }
 
 mpra_data %>% 
