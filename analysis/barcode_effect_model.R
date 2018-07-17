@@ -201,44 +201,49 @@ library(parallel)
 # 
 
 #### model string ----
-bc_effect_model = '
-data {
-  int<lower=0> n_rna_samples;
-  int<lower=0> n_barcodes; // number for this allele
-  int<lower=0> rna_counts[n_barcodes, n_rna_samples]; 
-  int<lower=1, upper = 2> allele[n_barcodes]; // allele indicator; 1 = ref, 2 = alt
-  real<lower=0> rna_depths[n_rna_samples]; 
-  real<lower=0> rna_norm_factors[n_barcodes];
-  real<lower=0> rna_m_a[2];
-  real<lower=0> rna_m_b[2];
-  real<lower=0> rna_p_a[2];
-  real<lower=0> rna_p_b[2];
-} 
-parameters {
-  vector<lower=0>[2] r_m_i;
-  vector<lower=0>[2] r_p_i;
-}
-model {
 
-  // with density estimation, alleles would have different priors
-  r_m_i[allele] ~ gamma(rna_m_a[allele], rna_m_b[allele]); // priors on negative binomial parameters
-  r_p_i[allele] ~ gamma(rna_p_a[allele], rna_p_b[allele]); // here, both alleles come from the same prior
-
-  for (s in 1:n_rna_samples) {
-    for (t in 1:n_barcodes) {
-      rna_counts[allele, s][t] ~ neg_binomial_2(r_m_i[allele] * rna_depths[s] * rna_norm_factors[t], r_p_i[allele]);
-    }
-    
-  }
-
-}
-generated quantities {
-  real transcription_shift;
-  transcription_shift = log(r_m_i[2]) - log(r_m_i[1]);
-}
-'
-
-bc_object = stan_model(model_code = bc_effect_model)
+# lol this is wrong
+# bc_effect_model = '
+# data {
+#   int<lower=0> n_rna_samples;
+#   int<lower=0> n_barcodes; // number for this allele
+#   int<lower=0> rna_counts[n_barcodes, n_rna_samples]; 
+#   int<lower=1, upper = 2> allele[n_barcodes]; // allele indicator; 1 = ref, 2 = alt
+#   real<lower=0> rna_depths[n_rna_samples]; 
+#   real<lower=0> rna_norm_factors[n_barcodes];
+#   real<lower=0> rna_m_a[2];
+#   real<lower=0> rna_m_b[2];
+#   real<lower=0> rna_p_a[2];
+#   real<lower=0> rna_p_b[2];
+# } 
+# parameters {
+#   vector<lower=0>[2] r_m_i;
+#   vector<lower=0>[2] r_p_i;
+# }
+# model {
+# 
+#   // with density estimation, alleles would have different priors
+#   r_m_i[allele] ~ gamma(rna_m_a[allele], rna_m_b[allele]); // priors on negative binomial parameters
+#   r_p_i[allele] ~ gamma(rna_p_a[allele], rna_p_b[allele]); // here, both alleles come from the same prior
+# 
+#   for (s in 1:n_rna_samples) {
+#     for (t in 1:n_barcodes) {
+#       rna_counts[allele, s][t] ~ neg_binomial_2(r_m_i[allele] * rna_depths[s] * rna_norm_factors[t], r_p_i[allele]);
+#     }
+#     
+#   }
+# 
+# }
+# generated quantities {
+#   real transcription_shift;
+#   transcription_shift = log(r_m_i[2]) - log(r_m_i[1]);
+# }
+# '
+# 
+# # Divide out average DNA count in TS? TODO
+# # Rename to abundance effect
+# 
+# bc_object = stan_model(model_code = bc_effect_model)
 
 #### test ----
 
@@ -272,7 +277,8 @@ my_HPD <- function(obj, prob = 0.95, ...) {
 run_samp_test = function(count_data, snp_id,
                          save_dir = '/mnt/labhome/andrew/bayesianMPRA/analysis_outputs/bc_effect_tests/',
                          depth_factors,
-                         n_cores = 10){
+                         n_cores = 10,
+                         tot_samp = 1e4){
   
   snp_dat = count_data %>% 
     mutate(bc_id = 1:n())
@@ -351,7 +357,100 @@ run_samp_test = function(count_data, snp_id,
                    rna_p_a = marg_prior %>% filter(acid_type == 'RNA', prior_type == 'phi_gamma_prior') %>% pull(alpha_est), # horrible non-alignment :(
                    rna_p_b = marg_prior %>% filter(acid_type == 'RNA', prior_type == 'phi_gamma_prior') %>% pull(beta_est))
   
-  n_samp_per_core = 1e4 / n_cores 
+  n_samp_per_core = tot_samp / n_cores 
+  n_iter = n_samp_per_core + 300
+  
+  samp_test = sampling(bc_object,
+                       data = data_list,
+                       chains = n_cores, 
+                       iter = n_iter, 
+                       warmup = 300,
+                       cores = n_cores)
+  save(samp_test, data_list,
+       file = paste0(save_dir, snp_id %>% gsub(' ', '_', .) %>% gsub('\\/', '-', .), '.RData'))
+  
+  samp_test %>% 
+    rstan::extract() %>% 
+    .[['transcription_shift']] %>% 
+    mcmc %>% 
+    my_HPD
+  
+}
+
+mean_norm_factor_test = function(count_data, snp_id,
+                                 save_dir = '/mnt/labhome/andrew/bayesianMPRA/analysis_outputs/bc_effect_tests/cd36/mean_norm_factor/',
+                                 depth_factors,
+                                 n_cores = 10,
+                                 tot_samp = 1e4){
+  
+  snp_dat = count_data %>% 
+    mutate(bc_id = 1:n())
+  
+  # For one barcode take the depth normalized values in each replicate .
+  
+  dnv = snp_dat %>% 
+    select(allele, bc_id, matches('NA')) %>% 
+    gather(sample, count, -allele, -bc_id) %>% 
+    left_join(depth_factors, by = 'sample') %>% 
+    mutate(depth_norm_count = count / depth_factor)
+  
+  well_represented = dnv %>% 
+    filter(grepl('DNA', sample)) %>% 
+    group_by(allele, bc_id) %>% 
+    summarise(mean_depth_norm = mean(depth_norm_count)) %>% 
+    ungroup %>% 
+    filter(mean_depth_norm > 10)
+  
+  wr_counts = well_represented %>% 
+    count(allele)
+  
+  if (any(wr_counts$n < 2) | nrow(well_represented) == 0) {
+    return(NA)
+  }
+  
+  dnv %<>% filter(bc_id %in% well_represented$bc_id)
+  
+  bc_mean_factors = dnv %>% 
+    mutate(samp_type = if_else(grepl('DNA', sample), 'DNA', 'RNA')) %>% 
+    group_by(bc_id, samp_type) %>%
+    summarise(mean_dnv = mean(depth_norm_count)) %>% # mean depth normalized count by barcode
+    ungroup %>% 
+    left_join(unique(select(dnv, bc_id, allele)), # attach on allele
+              by = 'bc_id') 
+  
+  samp_means = dnv %>% 
+    mutate(samp_type = if_else(grepl('DNA', sample), 'DNA', 'RNA')) %>% 
+    group_by(samp_type, allele) %>% 
+    summarise(samp_mean = mean(depth_norm_count)) # mean depth normalized count by sample
+  
+  bc_norm_factors = bc_mean_factors %>% 
+    left_join(samp_means, by = c('samp_type', 'allele')) %>% 
+    mutate(bc_norm_factor = (mean_dnv / samp_mean)) %>% 
+    select(bc_id, samp_type, bc_norm_factor) %>% 
+    mutate(samp_type = paste0(samp_type, '_norm_factor')) %>% 
+    spread(samp_type, bc_norm_factor)
+  
+  inputs = snp_dat %>% 
+    filter(bc_id %in% well_represented$bc_id) %>% 
+    left_join(bc_norm_factors,
+              by = 'bc_id') %>% 
+    select(allele, bc_id, DNA_norm_factor, RNA_norm_factor, everything())
+  
+  count_data = snp_dat %>% 
+    filter(bc_id %in% well_represented$bc_id)
+  
+  data_list = list(n_rna_samples = count_data %>% select(matches('RNA')) %>% ncol,
+                   n_barcodes = count_data %>% nrow,
+                   rna_counts = count_data %>% select(matches('RNA')) %>% as.matrix,
+                   allele = count_data %>% mutate(allele_ind = case_when(allele == 'ref' ~ 1, allele == 'mut' ~ 2)) %>% pull(allele_ind), 
+                   rna_depths = depth_factors %>% filter(grepl('RNA', sample)) %>% pull(depth_factor),
+                   rna_norm_factors = inputs$DNA_norm_factor,
+                   rna_m_a = marg_prior %>% filter(acid_type == 'RNA', prior_type == 'mu_gamma_prior') %>% pull(alpha_est),
+                   rna_m_b = marg_prior %>% filter(acid_type == 'RNA', prior_type == 'mu_gamma_prior') %>% pull(beta_est),
+                   rna_p_a = marg_prior %>% filter(acid_type == 'RNA', prior_type == 'phi_gamma_prior') %>% pull(alpha_est), # horrible non-alignment :(
+                   rna_p_b = marg_prior %>% filter(acid_type == 'RNA', prior_type == 'phi_gamma_prior') %>% pull(beta_est))
+  
+  n_samp_per_core = tot_samp / n_cores 
   n_iter = n_samp_per_core + 300
   
   samp_test = sampling(bc_object,
@@ -387,7 +486,9 @@ controls %<>% mutate(rs = rep(c(paste0('PKRRE', 1:5), paste0('ALAS2', 1:3), 'URU
 eqtls %<>% mutate(rs = map2_chr(rs, mut, ~ifelse(.x == 'rs17154155' & .y == 'T', 'rs17154155_ALT', .x))) # this snp had two alternate alleles
 
 pltMPRA = rbind(eqtls, controls)
-pltMPRA %<>% set_colnames(gsub('_L001_R1_001|seqOnly_', '', names(pltMPRA))) %>% 
+pltMPRA %<>% set_colnames(gsub('_L001_R1_001|seqOnly_', 
+                               '',
+                               names(pltMPRA))) %>% 
   select_all(~gsub('cDNA', 'RNA', gsub('Plasmid', 'DNA', .)))
 
 library(stringr)
@@ -412,7 +513,7 @@ sample_depths = pltMPRA %>%
 
 nb_param_estimates = pltMPRA %>%
   unnest %>%
-  gather(sample, count, matches('NA')) %>%
+  gather(sample, count, matches('[DR]NA')) %>%
   group_by(snp, allele, sample) %>%
   nest %>%
   mutate(count_mean = map_dbl(data, ~mean(.x$count)),
@@ -466,8 +567,9 @@ marg_prior = nb_param_estimates %>%
 #                        depth_factors = cd36MPRA_depth_factors,
 #                        n_cores = 10))
 
-get_post_mean = function(snp_id){
-  load(paste0('/mnt/labhome/andrew/bayesianMPRA/analysis_outputs/bc_effect_tests/cd36/', snp_id, '.RData'))
+get_post_mean = function(snp_id, 
+                         dir){
+  load(paste0(dir, snp_id, '.RData'))
   
   samp_test %>% 
     rstan::extract() %>% 
@@ -482,20 +584,242 @@ get_post_mean = function(snp_id){
 #                               ~!between(0, .x[1], .x[2])))
 
 
+# cd36_bc_effect_test = pltMPRA %>% 
+#   mutate(allele = tolower(allele)) %>% 
+#   group_by(snp) %>% 
+#   nest %>% 
+#   mutate(ts_HDI = map2(data, snp, 
+#                        run_samp_test, 
+#                        save_dir = '/mnt/labhome/andrew/bayesianMPRA/analysis_outputs/bc_effect_tests/cd36/',
+#                        depth_factors = cd36MPRA_depth_factors,
+#                        n_cores = 20)) %>% 
+#   mutate(post_mean_ts = map_dbl(snp,
+#                                 get_post_mean),
+#          functional = map_lgl(ts_HDI, 
+#                               ~!between(0, .x[1], .x[2])))
+# 
+# save(cd36_bc_effect_test, 
+#      file = '~/bayesianMPRA/analysis_outputs/cd36_bc_effect_test.RData')
+# 
+# cd36_mean_bc_effect_test = pltMPRA %>% 
+#   mutate(allele = tolower(allele)) %>% 
+#   group_by(snp) %>% 
+#   nest %>% 
+#   mutate(ts_HDI = map2(data, snp, 
+#                        mean_norm_factor_test, 
+#                        save_dir = '/mnt/labhome/andrew/bayesianMPRA/analysis_outputs/bc_effect_tests/cd36/mean_norm_factor/',
+#                        depth_factors = cd36MPRA_depth_factors,
+#                        n_cores = 18)) %>% 
+#   mutate(post_mean_ts = map_dbl(snp,
+#                                 get_post_mean),
+#          functional = map_lgl(ts_HDI, 
+#                               ~!between(0, .x[1], .x[2])))
+
+save(cd36_mean_bc_effect_test, 
+     file = '~/bayesianMPRA/analysis_outputs/cd36_mean_bc_effect_test.RData')
+
+make_ts_plot = function(snp_id, 
+                        dir = '/mnt/labhome/andrew/bayesianMPRA/analysis_outputs/bc_effect_tests/cd36/') {
+  load(paste0(dir, snp_id, '.RData'))
+  
+  samp_test %>% 
+    rstan::extract() %>% 
+    .[['transcription_shift']] %>% 
+    data_frame(transcription_shift = .) %>% 
+    ggplot(aes(transcription_shift)) + 
+    geom_histogram(aes(y = ..density..),
+                   bins = 40) + 
+    geom_density() + 
+    labs(title = paste0(snp_id, ' Barcode effect model TS'),
+         subtitle = 'TS = log(alt RNA mean) - log(ref RNA mean) after accounting for depth and barcode')
+}
+# 
+# tmp = mclapply(cd36_mean_bc_effect_test$snp,
+#     make_ts_plot, mc.cores = 10)
+
+
+#### Double normalization model ----
+
+bc_effect_model = '
+data {
+  int<lower=0> n_rna_samples;
+  int<lower=1> n_ref;
+  int<lower=1> n_mut;
+  int<lower=0> ref_counts[n_ref, n_rna_samples];
+  int<lower=0> mut_counts[n_mut, n_rna_samples];
+  real<lower=0> rna_depths[n_rna_samples]; 
+  real<lower=0> ref_rna_norm_factors[n_ref];
+  real<lower=0> mut_rna_norm_factors[n_mut];
+  real<lower=0> rna_m_a[2];
+  real<lower=0> rna_m_b[2];
+  real<lower=0> rna_p_a[2];
+  real<lower=0> rna_p_b[2];
+} 
+parameters {
+  vector<lower=0>[2] r_m_i;
+  vector<lower=0>[2] r_p_i;
+}
+model {
+
+  // with density estimation, alleles would have different priors
+  for (allele in 1:2) {
+    r_m_i[allele] ~ gamma(rna_m_a[allele], rna_m_b[allele]); // priors on negative binomial parameters
+    r_p_i[allele] ~ gamma(rna_p_a[allele], rna_p_b[allele]); // here, both alleles come from the same prior
+  }
+  
+  for (s in 1:n_rna_samples) {
+    for (t in 1:n_ref) {
+      ref_counts[t, s] ~ neg_binomial_2(r_m_i[1] * rna_depths[s] * ref_rna_norm_factors[t], r_p_i[1]);
+    }
+
+    for (t in 1:n_mut) {
+      mut_counts[t, s] ~ neg_binomial_2(r_m_i[2] * rna_depths[s] * mut_rna_norm_factors[t], r_p_i[2]);
+    }
+  }
+
+}
+generated quantities {
+  real transcription_shift;
+  transcription_shift = log(r_m_i[2]) - log(r_m_i[1]);
+}
+'
+
+bc_object = stan_model(model_code = bc_effect_model)
+
+
+bc_norm_factor_test = function(count_data, snp_id,
+                                 save_dir = '/mnt/labhome/andrew/bayesianMPRA/analysis_outputs/bc_effect_tests/cd36/mean_norm_factor/',
+                                 depth_factors,
+                                 n_cores = 10,
+                                 tot_samp = 1e4){
+  
+  snp_dat = count_data %>% 
+    mutate(bc_id = 1:n())
+  
+  # For one barcode take the depth normalized values in each replicate .
+  
+  dnv = snp_dat %>% # depth_normalized_values
+    select(allele, bc_id, matches('[DR]NA')) %>% 
+    gather(sample, count, -allele, -bc_id) %>% 
+    left_join(depth_factors, by = 'sample') %>% 
+    mutate(depth_norm_count = count / depth_factor)
+  
+  well_represented = dnv %>% 
+    filter(grepl('DNA', sample)) %>% 
+    group_by(allele, bc_id) %>% 
+    summarise(mean_depth_norm = mean(depth_norm_count)) %>% 
+    ungroup %>% 
+    filter(mean_depth_norm > 10)
+  
+  wr_counts = well_represented %>% 
+    count(allele)
+  
+  if (any(wr_counts$n < 2) | nrow(well_represented) == 0) {
+    return(NA)
+  }
+  
+  dnv %<>% filter(bc_id %in% well_represented$bc_id)
+  
+  bc_mean_factors = dnv %>% 
+    mutate(samp_type = if_else(grepl('DNA', sample), 'DNA', 'RNA')) %>% 
+    group_by(bc_id, samp_type) %>%
+    summarise(mean_dnv = mean(depth_norm_count)) %>% # mean depth normalized count by barcode
+    ungroup %>% 
+    left_join(unique(select(dnv, bc_id, allele)), # attach on allele
+              by = 'bc_id') 
+  
+  samp_means = dnv %>% 
+    mutate(samp_type = if_else(grepl('DNA', sample), 'DNA', 'RNA')) %>% 
+    group_by(samp_type, allele) %>% 
+    summarise(samp_mean = mean(depth_norm_count)) %>%  # mean depth normalized count by sample
+    ungroup
+  
+  bc_norm_factors = bc_mean_factors %>% 
+    left_join(samp_means, by = c('samp_type', 'allele')) %>% 
+    mutate(bc_norm_factor = (mean_dnv / samp_mean)) %>% 
+    select(bc_id, samp_type, bc_norm_factor) %>% 
+    mutate(samp_type = paste0(samp_type, '_norm_factor')) %>% 
+    spread(samp_type, bc_norm_factor)
+  
+  inputs = snp_dat %>% 
+    filter(bc_id %in% well_represented$bc_id) %>% 
+    left_join(bc_norm_factors,
+              by = 'bc_id') %>% 
+    select(allele, bc_id, DNA_norm_factor, RNA_norm_factor, everything())
+  
+  count_data = snp_dat %>% 
+    filter(bc_id %in% well_represented$bc_id)
+  
+  data_list = list(n_rna_samples = count_data %>% select(matches('RNA')) %>% ncol,
+                   n_barcodes = inputs %>% nrow,
+                   ref_counts = inputs %>% filter(allele == 'ref') %>%  select(matches('RNA')) %>% select(-matches('norm')) %>% as.matrix,
+                   mut_counts = inputs %>% filter(allele == 'mut') %>%  select(matches('RNA')) %>% select(-matches('norm')) %>% as.matrix,
+                   n_ref = inputs$allele %>% table() %>% .['ref'],
+                   n_mut = inputs$allele %>% table() %>% .['mut'],
+                   rna_depths = depth_factors %>% filter(grepl('RNA', sample)) %>% pull(depth_factor),
+                   ref_rna_norm_factors = inputs %>% filter(allele == 'ref') %>% pull(DNA_norm_factor),
+                   mut_rna_norm_factors = inputs %>% filter(allele == 'mut') %>% pull(DNA_norm_factor),
+                   rna_m_a = marg_prior %>% filter(acid_type == 'RNA', prior_type == 'mu_gamma_prior') %>% pull(alpha_est),
+                   rna_m_b = marg_prior %>% filter(acid_type == 'RNA', prior_type == 'mu_gamma_prior') %>% pull(beta_est),
+                   rna_p_a = marg_prior %>% filter(acid_type == 'RNA', prior_type == 'phi_gamma_prior') %>% pull(alpha_est), # horrible non-alignment :(
+                   rna_p_b = marg_prior %>% filter(acid_type == 'RNA', prior_type == 'phi_gamma_prior') %>% pull(beta_est))
+  
+  n_samp_per_core = tot_samp / n_cores 
+  n_iter = n_samp_per_core + 300
+  
+  samp_test = sampling(bc_object,
+                       data = data_list,
+                       chains = n_cores, 
+                       iter = n_iter, 
+                       warmup = 300,
+                       cores = n_cores)
+  save(samp_test, data_list,
+       file = paste0(save_dir, snp_id %>% gsub(' ', '_', .) %>% gsub('\\/', '-', .), '.RData'))
+  
+  samp_test %>% 
+    rstan::extract() %>% 
+    .[['transcription_shift']] %>% 
+    mcmc %>% 
+    my_HPD
+}
+
 cd36_bc_effect_test = pltMPRA %>% 
   mutate(allele = tolower(allele)) %>% 
   group_by(snp) %>% 
   nest %>% 
-  .[c(82, 88, 90, 43, 8),] %>% 
   mutate(ts_HDI = map2(data, snp, 
-                       run_samp_test, 
-                       save_dir = '/mnt/labhome/andrew/bayesianMPRA/analysis_outputs/bc_effect_tests/cd36/',
+                       bc_norm_factor_test, 
+                       save_dir = '/mnt/labhome/andrew/bayesianMPRA/analysis_outputs/bc_effect_tests/cd36/bc_norm_factor/',
                        depth_factors = cd36MPRA_depth_factors,
-                       n_cores = 20)) %>% 
+                       n_cores = 18)) %>% 
   mutate(post_mean_ts = map_dbl(snp,
                                 get_post_mean),
          functional = map_lgl(ts_HDI, 
                               ~!between(0, .x[1], .x[2])))
+
+load_and_get_ts_hdi = function(snp_id){
+  load(paste0('/mnt/labhome/andrew/bayesianMPRA/analysis_outputs/bc_effect_tests/cd36/bc_norm_factor/', snp_id, '.RData'))
+  samp_test %>% 
+    rstan::extract() %>% 
+    .[['transcription_shift']] %>% 
+    mcmc %>% 
+    my_HPD
+}
+
+cd36_bc_effect_test %<>%
+  mutate(ts_HDI = map(snp,
+                      load_and_get_ts_hdi),
+         functional = map_lgl(ts_HDI, 
+                              ~!between(0, .x[1], .x[2])),
+         post_mean_ts = map_dbl(snp,
+                                get_post_mean,
+                                dir = '/mnt/labhome/andrew/bayesianMPRA/analysis_outputs/bc_effect_tests/cd36/bc_norm_factor/'))
+
+
+
+save(cd36_mean_bc_effect_test, 
+     file = '~/bayesianMPRA/analysis_outputs/cd36_mean_bc_effect_test.RData')
+
 
 
 
